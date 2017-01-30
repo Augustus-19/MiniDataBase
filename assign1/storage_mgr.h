@@ -6,6 +6,12 @@
 /************************************************************
  *                    handle data structures                *
  ************************************************************/
+typedef struct _Mgmt_Info {
+	int fd;
+	char * map_addr;
+	int map_size;
+}
+ 
 typedef struct SM_FileHandle {
   char *fileName;
   int totalNumPages;
