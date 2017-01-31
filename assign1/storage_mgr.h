@@ -7,10 +7,10 @@
  *                    handle data structures                *
  ************************************************************/
 typedef struct _Mgmt_Info {
-	int fd;
-	char * map_addr;
-	int map_size;
-}
+  int fd;
+  char * map_addr;
+  int map_size;
+} Mgmt_Info;
  
 typedef struct SM_FileHandle {
   char *fileName;
