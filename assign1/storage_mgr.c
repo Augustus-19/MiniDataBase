@@ -116,40 +116,78 @@ RC destroyPageFile (char *fileName)
 /* reading blocks from disc */
 RC readBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
+	void *addr = ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr;
+	// read page from => startOfMemory + (pageNumber * pageSize)
+	memcpy(memPage,addr+(PAGE_SIZE*pageNum),PAGE_SIZE);
+	fHandle->curPagePos = pageNum + 1;
 	return RC_OK;
 }
+
 int getBlockPos (SM_FileHandle *fHandle)
 {
 	return fHandle->curPagePos;
 }
+
 RC readFirstBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
+	void *addr = ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr;
+	memcpy(memPage,addr,PAGE_SIZE);
+	fHandle->curPagePos = 1;
 	return RC_OK;
 }
+
+
 RC readPreviousBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
+	// starting address + (currentPagePositon - 1) * pageSize
+	void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos - 1)*PAGE_SIZE);
+	memcpy(memPage,addr,PAGE_SIZE);
+	fHandle->curPagePos--;
+
 	return RC_OK;
 }
 RC readCurrentBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
+// starting address + (currentPagePositon * pageSize)
+	void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos)*PAGE_SIZE);
+	memcpy(memPage,addr,PAGE_SIZE);
+	fHandle->curPagePos = 1;
 	return RC_OK;
 }
+
 RC readNextBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
+	// starting address + (currentPagePositon + 1) * pageSize
+	void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos + 1)*PAGE_SIZE);
+	memcpy(memPage,addr,PAGE_SIZE);
+	fHandle->curPagePos++;
 	return RC_OK;
 }
 RC readLastBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
+	// starting address + (currentPagePositon + 1) * pageSize
+	void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->totalNumPages * PAGE_SIZE) -1);
+	memcpy(memPage,addr,PAGE_SIZE);
+	fHandle->curPagePos = fHandle->totalNumPages;
 	return RC_OK;
 }
 
 /* writing blocks to a page file */
 RC writeBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
+	void *addr = ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr;
+	// read page from => startOfMemory + ( pageSize * pageNumber)
+	memcpy(addr+(PAGE_SIZE*pageNum),memPage,PAGE_SIZE);
+	fHandle->curPagePos = pageNum + 1;
 	return RC_OK;
 }
+
 RC writeCurrentBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
+// starting address + (currentPagePositon * pageSize)
+	void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos)*PAGE_SIZE);
+	memcpy(addr,memPage,PAGE_SIZE);
+	fHandle->curPagePos = 1;
 	return RC_OK;
 }
 RC appendEmptyBlock (SM_FileHandle *fHandle)
