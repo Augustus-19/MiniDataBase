@@ -21,8 +21,16 @@ void initStorageManager (void)
 
 RC createPageFile (char *fileName)
 {
+
 	int fd;
 	int ret;
+
+	/* invalid or null pointer check*/	
+	if(fileName == NULL){
+		perror("Invalid parameter");
+		return RC_NULL_PARAM;
+
+	}
 	
 	// Create new file 
 	if ( (fd = open(fileName, O_WRONLY | O_CREAT | O_SYNC, FILE_MODE)) < 0) 
@@ -53,6 +61,14 @@ RC openPageFile (char *fileName, SM_FileHandle *fHandle)
 	int ret;
 	size_t len_file, len;
 	char* addr = NULL;
+
+	/* invalid or null pointer check*/	
+	if(fileName == NULL || fHandle == NULL){
+		perror("Invalid parameter");
+		return RC_NULL_PARAM;
+
+	}
+
 
 	if ((fd = open(fileName, O_RDWR, FILE_MODE)) < 0)
 	{
@@ -89,6 +105,14 @@ RC openPageFile (char *fileName, SM_FileHandle *fHandle)
 
 RC closePageFile (SM_FileHandle *fHandle)
 {
+
+	/* invalid or null pointer check*/	
+	if(fHandle == NULL){
+		perror("Invalid parameter");
+		return RC_NULL_PARAM;
+
+	}
+
 	char* addr = ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr;
 	size_t len = ((Mgmt_Info*)fHandle->mgmtInfo)->map_size;
 	int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
@@ -107,6 +131,14 @@ RC closePageFile (SM_FileHandle *fHandle)
 RC destroyPageFile (char *fileName)
 {
 	int ret;
+
+	/* invalid or null pointer check*/	
+	if(fileName == NULL){
+		perror("Invalid parameter");
+		return RC_NULL_PARAM;
+
+	}
+
 	if((ret = unlink(fileName)) < 0)
   		perror("File not destroyed");
 
@@ -116,6 +148,17 @@ RC destroyPageFile (char *fileName)
 /* reading blocks from disc */
 RC readBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
+	/* invalid or null pointer check*/	
+	if(fHandle == NULL){
+		perror("Invalid parameter");
+		return RC_NULL_PARAM;
+	}
+
+	/*to handle page out of bound*/
+	if((pageNum >= fHandle->totalNumPages) || (pageNum < 0)){
+		perror("pageNum is out of bound");
+		return RC_PAGE_OUTOFBOUND;
+	}
 	void *addr = ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr;
 	// read page from => startOfMemory + (pageNumber * pageSize)
 	memcpy(memPage,addr+(PAGE_SIZE*pageNum),PAGE_SIZE);
@@ -125,11 +168,23 @@ RC readBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage)
 
 int getBlockPos (SM_FileHandle *fHandle)
 {
+	/* invalid or null pointer check*/	
+	if(fHandle == NULL){
+		perror("Invalid parameter");
+		return RC_NULL_PARAM;
+	}
+
 	return fHandle->curPagePos;
 }
 
 RC readFirstBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
+	/* invalid or null pointer check*/	
+	if(fHandle == NULL){
+		perror("Invalid parameter");
+		return RC_NULL_PARAM;
+	}
+
 	void *addr = ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr;
 	memcpy(memPage,addr,PAGE_SIZE);
 	fHandle->curPagePos = 1;
@@ -139,6 +194,13 @@ RC readFirstBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 
 RC readPreviousBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
+
+	/* invalid or null pointer check*/	
+	if(fHandle == NULL){
+		perror("Invalid parameter");
+		return RC_NULL_PARAM;
+	}
+
 	// starting address + (currentPagePositon - 1) * pageSize
 	void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos - 1)*PAGE_SIZE);
 	memcpy(memPage,addr,PAGE_SIZE);
@@ -148,7 +210,13 @@ RC readPreviousBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 }
 RC readCurrentBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
-// starting address + (currentPagePositon * pageSize)
+	/* invalid or null pointer check*/	
+	if(fHandle == NULL){
+		perror("Invalid parameter");
+		return RC_NULL_PARAM;
+	}
+
+	// starting address + (currentPagePositon * pageSize)
 	void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos)*PAGE_SIZE);
 	memcpy(memPage,addr,PAGE_SIZE);
 	fHandle->curPagePos = 1;
@@ -157,6 +225,14 @@ RC readCurrentBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 
 RC readNextBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
+
+	/* invalid or null pointer check*/	
+	if(fHandle == NULL){
+		perror("Invalid parameter");
+		return RC_NULL_PARAM;
+
+	}
+
 	// starting address + (currentPagePositon + 1) * pageSize
 	void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos + 1)*PAGE_SIZE);
 	memcpy(memPage,addr,PAGE_SIZE);
@@ -165,16 +241,38 @@ RC readNextBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 }
 RC readLastBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
+
+	/* invalid or null pointer check*/	
+	if(fHandle == NULL){
+		perror("Invalid parameter");
+		return RC_NULL_PARAM;
+
+	}
+
 	// starting address + (currentPagePositon + 1) * pageSize
 	void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->totalNumPages * PAGE_SIZE) -1);
 	memcpy(memPage,addr,PAGE_SIZE);
 	fHandle->curPagePos = fHandle->totalNumPages;
 	return RC_OK;
+
 }
 
 /* writing blocks to a page file */
 RC writeBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
+
+	/* invalid or null pointer check*/	
+	if(fHandle == NULL){
+		perror("Invalid parameter");
+		return RC_NULL_PARAM;
+
+	}
+
+	/*to handle page out of bound*/
+	if((pageNum >= fHandle->totalNumPages) || (pageNum < 0)){
+		perror("pageNum is out of bound");
+		return RC_PAGE_OUTOFBOUND;
+	}
 	void *addr = ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr;
 	// read page from => startOfMemory + ( pageSize * pageNumber)
 	memcpy(addr+(PAGE_SIZE*pageNum),memPage,PAGE_SIZE);
@@ -184,7 +282,15 @@ RC writeBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage)
 
 RC writeCurrentBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
-// starting address + (currentPagePositon * pageSize)
+
+	/* invalid or null pointer check*/	
+	if(fHandle == NULL){
+		perror("Invalid parameter");
+		return RC_NULL_PARAM;
+
+	}
+
+	// starting address + (currentPagePositon * pageSize)
 	void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos)*PAGE_SIZE);
 	memcpy(addr,memPage,PAGE_SIZE);
 	fHandle->curPagePos = 1;
@@ -192,6 +298,14 @@ RC writeCurrentBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 }
 RC appendEmptyBlock (SM_FileHandle *fHandle)
 {
+
+	/* invalid or null pointer check*/	
+	if(fHandle == NULL){
+		perror("Invalid parameter");
+		return RC_NULL_PARAM;
+
+	}
+
 	int len = ((Mgmt_Info*)fHandle->mgmtInfo)->map_size;
         int new_len = len + PAGE_SIZE;
         char * addr = ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr;
@@ -219,6 +333,14 @@ RC appendEmptyBlock (SM_FileHandle *fHandle)
 
 RC ensureCapacity (int numberOfPages, SM_FileHandle *fHandle)
 {
+
+	/* invalid or null pointer check*/	
+	if(fHandle == NULL){
+		perror("Invalid parameter");
+		return RC_NULL_PARAM;
+
+	}
+
 	while(fHandle->totalNumPages < numberOfPages)
     		appendEmptyBlock(fHandle);
   	return RC_OK;

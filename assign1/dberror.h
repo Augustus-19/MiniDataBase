@@ -15,6 +15,12 @@ typedef int RC;
 #define RC_WRITE_FAILED 3
 #define RC_READ_NON_EXISTING_PAGE 4
 
+/* requested page is out of bound */
+#define RC_PAGE_OUTOFBOUND 5
+
+/* parameters provided have null value */
+#define RC_NULL_PARAM 6
+
 #define RC_RM_COMPARE_VALUE_OF_DIFFERENT_DATATYPE 200
 #define RC_RM_EXPR_RESULT_IS_NOT_BOOLEAN 201
 #define RC_RM_BOOLEAN_EXPR_ARG_IS_NOT_BOOLEAN 202
