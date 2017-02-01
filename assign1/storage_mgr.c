@@ -59,7 +59,7 @@ RC openPageFile (char *fileName, SM_FileHandle *fHandle)
 	struct stat st;
 	int fd;
 	int ret;
-	size_t len_file, len;
+	size_t len_file;
 	char* addr = NULL;
 
 	/* invalid or null pointer check*/	
@@ -68,7 +68,6 @@ RC openPageFile (char *fileName, SM_FileHandle *fHandle)
 		return RC_NULL_PARAM;
 
 	}
-
 
 	if ((fd = open(fileName, O_RDWR, FILE_MODE)) < 0)
 	{
@@ -83,22 +82,24 @@ RC openPageFile (char *fileName, SM_FileHandle *fHandle)
 	}
 
 	len_file = st.st_size;
-
-	/*len_file having the total length of the file(fd).*/
-
-	if ((addr = mmap(NULL,len_file,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0)) == MAP_FAILED)
-	{
-		perror("Error memory mapping file");
-		return RC_FILE_NOT_FOUND;
-	}
 	
 	fHandle->fileName = fileName;
 	fHandle->totalNumPages = len_file / PAGE_SIZE;
 	fHandle->curPagePos = 0;
   	fHandle->mgmtInfo = malloc(sizeof(Mgmt_Info));
-  	((Mgmt_Info*)fHandle->mgmtInfo)->map_addr = addr;
   	((Mgmt_Info*)fHandle->mgmtInfo)->fd = fd;
-  	((Mgmt_Info*)fHandle->mgmtInfo)->map_size = len_file;
+
+	if ((addr = mmap(NULL, len_file, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0)) == MAP_FAILED)
+	{
+		((Mgmt_Info*)fHandle->mgmtInfo)->mmapped = FALSE;
+		perror("Error memory mapping file");
+	}
+	else
+	{
+		((Mgmt_Info*)fHandle->mgmtInfo)->mmapped = TRUE;
+		((Mgmt_Info*)fHandle->mgmtInfo)->map_addr = addr;	
+  		((Mgmt_Info*)fHandle->mgmtInfo)->map_size = len_file;
+	}
 	
 	return RC_OK;
 }
@@ -116,12 +117,16 @@ RC closePageFile (SM_FileHandle *fHandle)
 	char* addr = ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr;
 	size_t len = ((Mgmt_Info*)fHandle->mgmtInfo)->map_size;
 	int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
 	
-	if((msync(addr,len,MS_SYNC)) < 0)
-        	perror("Error in msync");
+	if(mmapped == TRUE)
+	{
+			if((msync(addr,len,MS_SYNC)) < 0)
+			perror("Error in msync");
 
-    	if( munmap(addr,len) == -1)
-        	perror("Error in munmap");
+	    	if(munmap(addr,len) == -1)
+			perror("Error in munmap");
+    }
 	
 	close(fd);
 	
@@ -163,9 +168,29 @@ RC readBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage)
 		perror("pageNum is out of bound");
 		return RC_PAGE_OUTOFBOUND;
 	}
-	void *addr = ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr;
-	// read page from => startOfMemory + (pageNumber * pageSize)
-	memcpy(memPage,addr+(PAGE_SIZE*pageNum),PAGE_SIZE);
+	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
+	
+	if(mmapped == TRUE)
+	{
+		void *addr = ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr;
+		// read page from => startOfMemory + (pageNumber * pageSize)
+		memcpy(memPage, addr + (PAGE_SIZE * pageNum), PAGE_SIZE);
+	}
+	else
+	{
+		int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+		if(lseek(fd, (PAGE_SIZE * pageNum), SEEK_SET) == -1)
+		{
+			perror("Error seeking to page in file");
+			return RC_PAGE_OUTOFBOUND;
+		}
+
+ 		if(read(fd, (void *) memPage, PAGE_SIZE) == -1)
+ 		{
+ 			perror("Error reading page in file");
+			return RC_PAGE_OUTOFBOUND;
+		}
+	}
 	fHandle->curPagePos = pageNum;
 	return RC_OK;
 }
@@ -188,9 +213,30 @@ RC readFirstBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 		perror("Invalid parameter");
 		return RC_NULL_PARAM;
 	}
+	
+	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
+	
+	if(mmapped == TRUE)
+	{
+		void *addr = ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr;
+		memcpy(memPage, addr, PAGE_SIZE);
+	}
+	else
+	{
+  		int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+  		if(lseek(fd, 0, SEEK_SET) == -1)
+		{
+			perror("Error seeking to page in file");
+			return RC_PAGE_OUTOFBOUND;
+		}
 
-	void *addr = ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr;
-	memcpy(memPage,addr,PAGE_SIZE);
+ 		if(read(fd, (void *) memPage, PAGE_SIZE) == -1)
+ 		{
+ 			perror("Error reading page in file");
+			return RC_PAGE_OUTOFBOUND;
+		}
+	}
+	
 	fHandle->curPagePos = 0;
 	return RC_OK;
 }
@@ -211,10 +257,31 @@ RC readPreviousBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 		return RC_PAGE_OUTOFBOUND;
 	
 	}
+	
+	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
+	
+	if(mmapped == TRUE)
+	{
+		// starting address + (currentPagePositon - 1) * pageSize
+		void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos - 1)*PAGE_SIZE);
+		memcpy(memPage,addr,PAGE_SIZE);
+	}
+	else
+	{
+		int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+		if(lseek(fd, -PAGE_SIZE, SEEK_CUR) == -1)
+		{
+			perror("Error seeking to page in file");
+			return RC_PAGE_OUTOFBOUND;
+		}
 
-	// starting address + (currentPagePositon - 1) * pageSize
-	void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos - 1)*PAGE_SIZE);
-	memcpy(memPage,addr,PAGE_SIZE);
+ 		if(read(fd, (void *) memPage, PAGE_SIZE) == -1)
+ 		{
+ 			perror("Error reading page in file");
+			return RC_PAGE_OUTOFBOUND;
+		}
+	}
+	
 	fHandle->curPagePos--;
 
 	return RC_OK;
@@ -227,10 +294,24 @@ RC readCurrentBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 		perror("Invalid parameter");
 		return RC_NULL_PARAM;
 	}
-
-	// starting address + (currentPagePositon * pageSize)
-	void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos)*PAGE_SIZE);
-	memcpy(memPage,addr,PAGE_SIZE);
+	
+	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
+	
+	if(mmapped == TRUE)
+	{
+		// starting address + (currentPagePositon * pageSize)
+		void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos)*PAGE_SIZE);
+		memcpy(memPage,addr,PAGE_SIZE);
+	}
+	else
+	{
+		int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+		if(read(fd, (void *) memPage, PAGE_SIZE) == -1)
+ 		{
+ 			perror("Error reading page in file");
+			return RC_PAGE_OUTOFBOUND;
+		}
+	}
 	//fHandle->curPagePos = 1;  // no need to update
 	return RC_OK;
 }
@@ -252,9 +333,29 @@ RC readNextBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 	
 	}
 
-	// starting address + (currentPagePositon + 1) * pageSize
-	void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos + 1)*PAGE_SIZE);
-	memcpy(memPage,addr,PAGE_SIZE);
+	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
+	
+	if(mmapped == TRUE)
+	{
+		// starting address + (currentPagePositon + 1) * pageSize
+		void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos + 1)*PAGE_SIZE);
+		memcpy(memPage,addr,PAGE_SIZE);
+	}
+	else
+	{
+		int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+		if(lseek(fd, +PAGE_SIZE, SEEK_CUR) == -1)
+		{
+			perror("Error seeking to page in file");
+			return RC_PAGE_OUTOFBOUND;
+		}
+
+ 		if(read(fd, (void *) memPage, PAGE_SIZE) == -1)
+ 		{
+ 			perror("Error reading page in file");
+			return RC_PAGE_OUTOFBOUND;
+		}
+	}
 	fHandle->curPagePos++;
 	return RC_OK;
 }
@@ -268,10 +369,30 @@ RC readLastBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 		return RC_NULL_PARAM;
 
 	}
+	
+	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
+	
+	if(mmapped == TRUE)
+	{
+		// starting address + (totalNumPages - 1) * pageSize
+		void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->totalNumPages - 1) * PAGE_SIZE);
+		memcpy(memPage, addr, PAGE_SIZE);
+	}
+	else
+	{
+		int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+		if(lseek(fd, -PAGE_SIZE, SEEK_END) == -1)
+		{
+			perror("Error seeking to page in file");
+			return RC_PAGE_OUTOFBOUND;
+		}
 
-	// starting address + (totalNumPages - 1) * pageSize
-	void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->totalNumPages - 1) * PAGE_SIZE);
-	memcpy(memPage, addr, PAGE_SIZE);
+ 		if(read(fd, (void *) memPage, PAGE_SIZE) == -1)
+ 		{
+ 			perror("Error reading page in file");
+			return RC_PAGE_OUTOFBOUND;
+		}
+	}
 	fHandle->curPagePos = fHandle->totalNumPages - 1;
 	return RC_OK;
 
@@ -292,10 +413,31 @@ RC writeBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage)
 		perror("pageNum is out of bound");
 		return RC_PAGE_OUTOFBOUND;
 	}
+	
+	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
+	
+	if(mmapped == TRUE)
+	{
 
-	void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr + (PAGE_SIZE*pageNum));
-	// read page from => startOfMemory + ( pageSize * pageNumber)
-	memcpy(addr, memPage, PAGE_SIZE);
+		void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr + (PAGE_SIZE*pageNum));
+		// read page from => startOfMemory + ( pageSize * pageNumber)
+		memcpy(addr, memPage, PAGE_SIZE);
+	}
+	else
+	{
+		int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+		if(lseek(fd, (PAGE_SIZE * pageNum), SEEK_SET) == -1)
+		{
+			perror("Error seeking to page in file");
+			return RC_PAGE_OUTOFBOUND;
+		}
+
+ 		if(write(fd, (void *) memPage, PAGE_SIZE) == -1)
+ 		{
+ 			perror("Error writing page in file");
+			return RC_PAGE_OUTOFBOUND;
+		}
+	}
 	fHandle->curPagePos = pageNum;
 	return RC_OK;
 }
@@ -309,10 +451,24 @@ RC writeCurrentBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 		return RC_NULL_PARAM;
 
 	}
-
-	// starting address + (currentPagePositon * pageSize)
-	void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos)*PAGE_SIZE);
-	memcpy(addr, memPage, PAGE_SIZE);
+	
+	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
+	
+	if(mmapped == TRUE)
+	{
+		// starting address + (currentPagePositon * pageSize)
+		void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos)*PAGE_SIZE);
+		memcpy(addr, memPage, PAGE_SIZE);
+	}
+	else
+	{
+		int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+		if(write(fd, (void *) memPage, PAGE_SIZE) == -1)
+ 		{
+ 			perror("Error writing page in file");
+			return RC_PAGE_OUTOFBOUND;
+		}
+	}
         /* no need to update position */
 	return RC_OK;
 }
@@ -327,25 +483,67 @@ RC appendEmptyBlock (SM_FileHandle *fHandle)
 
 	}
 
-	int len = ((Mgmt_Info*)fHandle->mgmtInfo)->map_size;
-        int new_len = len + PAGE_SIZE;
-        char * addr = ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr;
+        int new_len = (fHandle->totalNumPages * PAGE_SIZE) + PAGE_SIZE;
         int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
         
         if (ftruncate(fd, new_len) != 0)
         {
             perror("Error extending file");
-            return EXIT_FAILURE;
-        }
-        if ((addr = mremap(addr, len, new_len, MREMAP_MAYMOVE)) == MAP_FAILED)
-        {
-            perror("Error extending mapping");
-            return EXIT_FAILURE;
+            return RC_FILE_NOT_EXTENSIBLE;
         }
         
-        memset(addr+len, '0', PAGE_SIZE);
-        ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr = addr;
-        ((Mgmt_Info*)fHandle->mgmtInfo)->map_size = new_len;
+        BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
+	
+	if(mmapped == TRUE) 
+	{
+		int len = ((Mgmt_Info*)fHandle->mgmtInfo)->map_size;
+		char * addr = ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr;
+		
+		if ((addr = mremap(addr, len, new_len, MREMAP_MAYMOVE)) == MAP_FAILED)
+		{
+		    	perror("Error extending mapping");
+		    	((Mgmt_Info*)fHandle->mgmtInfo)->mmapped = FALSE;
+		    	
+
+			if(lseek(fd, -PAGE_SIZE, SEEK_END) == -1)
+			{
+				perror("Error seeking to page in file");
+				return RC_PAGE_OUTOFBOUND;
+			}
+			
+			memset((void *) io_buffer, 0, PAGE_SIZE);
+			
+	 		if(write(fd, (void *) io_buffer, PAGE_SIZE) == -1)
+	 		{
+	 			perror("Error writing page in file");
+				return RC_PAGE_OUTOFBOUND;
+			}
+		}
+		else
+		{
+			((Mgmt_Info*)fHandle->mgmtInfo)->map_addr = addr;
+        		((Mgmt_Info*)fHandle->mgmtInfo)->map_size = new_len;
+        		memset(addr+len, '0', PAGE_SIZE);
+		}
+        }
+        else
+        {
+        	if(lseek(fd, -PAGE_SIZE, SEEK_END) == -1)
+		{
+			perror("Error seeking to page in file");
+			return RC_PAGE_OUTOFBOUND;
+		}
+		
+		memset((void *) io_buffer, 0, PAGE_SIZE);
+		
+ 		if(write(fd, (void *) io_buffer, PAGE_SIZE) == -1)
+ 		{
+ 			perror("Error writing page in file");
+			return RC_PAGE_OUTOFBOUND;
+		}
+	}
+        
+
         fHandle->totalNumPages += 1;
         fHandle->curPagePos = fHandle->totalNumPages - 1;
         

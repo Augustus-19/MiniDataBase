@@ -3,11 +3,16 @@
 
 #include "dberror.h"
 
+#define BOOL int
+#define TRUE 1
+#define FALSE 0
+
 /************************************************************
  *                    handle data structures                *
  ************************************************************/
 typedef struct _Mgmt_Info {
   int fd;
+  BOOL mmapped;
   char * map_addr;
   int map_size;
 } Mgmt_Info;
