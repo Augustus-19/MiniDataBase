@@ -25,6 +25,50 @@ extern char *testName;
       }									\
   } while(0);
 
+
+// check the return code and exit if it's and error
+#define TEST_CHECK_WRONGBLOCK(code)						\
+  do {									\
+    int rc_internal = (code);						\
+    if (rc_internal != RC_PAGE_OUTOFBOUND)						\
+      {									\
+	char *message = errorMessage(rc_internal);			\
+	printf("[%s-%s-L%i-%s] FAILED: Operation returned error: %s\n",TEST_INFO, message); \
+	free(message);							\
+	exit(1);							\
+      }									\
+  } while(0);
+
+
+
+// check the return code and exit if it's and error
+#define TEST_CHECK_OPENWITHWRONGFIEL(code)						\
+  do {									\
+    int rc_internal = (code);						\
+    if (rc_internal != RC_FILE_NOT_FOUND)						\
+      {									\
+	char *message = errorMessage(rc_internal);			\
+	printf("[%s-%s-L%i-%s] FAILED: Operation returned error: %s\n",TEST_INFO, message); \
+	free(message);							\
+	exit(1);							\
+      }									\
+  } while(0);
+
+
+// check the return code and exit if it's and error
+#define TEST_CHECK_DELETEWITHWRONGFIEL(code)						\
+  do {									\
+    int rc_internal = (code);						\
+    if (rc_internal != RC_DELETE_FAILED)						\
+      {									\
+	char *message = errorMessage(rc_internal);			\
+	printf("[%s-%s-L%i-%s] FAILED: Operation returned error: %s\n",TEST_INFO, message); \
+	free(message);							\
+	exit(1);							\
+      }									\
+  } while(0);
+
+
 // check whether two strings are equal
 #define ASSERT_EQUALS_STRING(expected,real,message)			\
   do {									\

@@ -12,10 +12,16 @@ char *testName;
 
 /* test output files */
 #define TESTPF "test_pagefile.bin"
+/* test output file2 */
+#define TESTPF2 "test_pagefile2.bin"
+
+
 
 /* prototypes for test functions */
 static void testCreateOpenClose(void);
 static void testSinglePageContent(void);
+static void testOpenEachPage_checkValues(void);
+static void testTryToOpenWrongFile(void);
 
 /* main function running all tests */
 int
@@ -25,8 +31,11 @@ main (void)
   
   initStorageManager();
 
-  testCreateOpenClose();
-  testSinglePageContent();
+  //testCreateOpenClose();
+  //testSinglePageContent();
+  /*new test cases */
+  //testTryToOpenWrongFile();  
+  testOpenEachPage_checkValues();
 
   return 0;
 }
@@ -56,6 +65,7 @@ testCreateOpenClose(void)
 
   TEST_DONE();
 }
+
 
 /* Try to create, open, and close a page file */
 void
@@ -98,3 +108,112 @@ testSinglePageContent(void)
   
   TEST_DONE();
 }
+
+/* try to open wrong file test */
+void 
+testTryToOpenWrongFile(void){
+
+  SM_FileHandle fh;
+  SM_PageHandle ph;
+  int i;
+
+  testName = "try to open wrong file";
+  ph = (SM_PageHandle) malloc(PAGE_SIZE);
+
+  // create a new page file
+  TEST_CHECK(createPageFile (TESTPF));
+  TEST_CHECK(openPageFile (TESTPF, &fh));
+  printf("created and opened file\n");
+
+  TEST_CHECK(createPageFile (TESTPF));
+  
+  TEST_CHECK(openPageFile (TESTPF, &fh));
+  ASSERT_TRUE(strcmp(fh.fileName, TESTPF) == 0, "filename correct");
+  ASSERT_TRUE((fh.totalNumPages == 1), "expect 1 page in new file");
+  ASSERT_TRUE((fh.curPagePos == 0), "freshly opened file's page position should be 0");
+
+  /* try to open wrong file*/
+  TEST_CHECK_OPENWITHWRONGFIEL(openPageFile (TESTPF2, &fh));
+
+  /* try to delete wrong file */
+  TEST_CHECK_DELETEWITHWRONGFIEL(destroyPageFile (TESTPF2));
+
+  TEST_CHECK(closePageFile (&fh));
+  TEST_CHECK(destroyPageFile (TESTPF));
+  TEST_DONE();
+
+
+}
+
+/* Try to read all blocks and cross check the values */
+void
+testOpenEachPage_checkValues(){
+
+  SM_FileHandle fh;
+  SM_PageHandle ph;
+  int i, j;
+  int dataToWrite,dataToRead;
+
+  testName = "try to open wrong file";
+  ph = (SM_PageHandle) malloc(PAGE_SIZE);
+
+  // create a new page file
+  TEST_CHECK(createPageFile (TESTPF));
+  TEST_CHECK(openPageFile (TESTPF, &fh));
+  printf("created and opened file\n");
+
+  // read first page into handle
+  TEST_CHECK(readFirstBlock (&fh, ph));
+  // the page should be empty (zero bytes)
+  for (i=0; i < PAGE_SIZE; i++)
+    ASSERT_TRUE((ph[i] == 0), "expected zero byte in first page of freshly initialized page");
+  printf("first block was empty\n");
+    
+  // read first page into handle to reset the postion to 0
+  TEST_CHECK(readFirstBlock (&fh, ph));
+
+
+  for(j = 0;j < 10; j++){
+
+    // write content of page as position of the page
+    dataToWrite = getBlockPos(&fh);
+    printf("dataToWrite is : %d\n",dataToWrite);
+
+    // change ph to be a string and write that one to disk
+    for (i=0; i < PAGE_SIZE; i++)
+      ph[i] = dataToWrite;
+    TEST_CHECK(writeBlock (dataToWrite, &fh, ph));
+    TEST_CHECK(appendEmptyBlock(&fh));
+    printf("end of writing %d block\n",dataToWrite);
+
+
+  }
+
+  for(j = 0;j < 10; j++){
+    if(j == 0){
+       TEST_CHECK(readFirstBlock (&fh, ph));
+    }else{
+       TEST_CHECK(readNextBlock ( &fh, ph));
+    }
+
+    // read content of page as position of the page
+    dataToRead = getBlockPos(&fh);
+    printf("dataToRead is : %d\n",dataToRead);    
+
+
+    // change ph to be a string and write that one to disk
+    for (i=0; i < PAGE_SIZE; i++)
+      ASSERT_TRUE((ph[i] == dataToRead), "character in page read from disk is the one we expected.");
+    printf("End of reading %d block\n",dataToRead);
+
+  }
+  
+  // destroy new page file
+  TEST_CHECK(destroyPageFile (TESTPF));  
+  TEST_DONE();
+
+
+}
+
+
+

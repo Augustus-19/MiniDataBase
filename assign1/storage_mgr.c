@@ -140,8 +140,11 @@ RC destroyPageFile (char *fileName)
 
 	}
 
-	if((ret = unlink(fileName)) < 0)
+	if((ret = unlink(fileName)) < 0){
   		perror("File not destroyed");
+		return RC_DELETE_FAILED;
+
+	}
 
   	return RC_OK;
 }
@@ -205,7 +208,7 @@ RC readPreviousBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 	/* avoid reading page number less than zero*/
 	if((fHandle->curPagePos - 1) < 0){
 		perror("no previous block");
-		return RC_NO_BLOCK;
+		return RC_PAGE_OUTOFBOUND;
 	
 	}
 
@@ -245,7 +248,7 @@ RC readNextBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 	/* avoid reading page number less than zero*/
 	if((fHandle->curPagePos + 1) >= fHandle->totalNumPages){
 		perror("no next block");
-		return RC_NO_BLOCK;
+		return RC_PAGE_OUTOFBOUND;
 	
 	}
 
