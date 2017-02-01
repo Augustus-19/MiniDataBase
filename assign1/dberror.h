@@ -21,6 +21,9 @@ typedef int RC;
 /* parameters provided have null value */
 #define RC_NULL_PARAM 6
 
+/* cannot perfomr prev or next block read */
+#define RC_NO_BLOCK 7
+
 #define RC_RM_COMPARE_VALUE_OF_DIFFERENT_DATATYPE 200
 #define RC_RM_EXPR_RESULT_IS_NOT_BOOLEAN 201
 #define RC_RM_BOOLEAN_EXPR_ARG_IS_NOT_BOOLEAN 202
