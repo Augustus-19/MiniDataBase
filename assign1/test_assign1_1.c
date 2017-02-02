@@ -14,6 +14,7 @@ char *testName;
 #define TESTPF "test_pagefile.bin"
 /* test output file2 */
 #define TESTPF2 "test_pagefile2.bin"
+#define TESTPF3 "duplicateTest.bin"
 
 
 
@@ -22,6 +23,9 @@ static void testCreateOpenClose(void);
 static void testSinglePageContent(void);
 static void testOpenEachPage_checkValues(void);
 static void testTryToOpenWrongFile(void);
+static void testAccessPageOutOfRange(void);
+static void testPassNULL(void);
+static void testEnsureCapacity(void);
 
 /* main function running all tests */
 int
@@ -33,9 +37,12 @@ main (void)
 
   testCreateOpenClose();
   testSinglePageContent();
-  /*new test cases */
+  /*new test cases */ 
   testTryToOpenWrongFile();  
   testOpenEachPage_checkValues();
+  testAccessPageOutOfRange();
+  testPassNULL();
+  testEnsureCapacity();
 
   return 0;
 }
@@ -66,6 +73,7 @@ testCreateOpenClose(void)
 
   TEST_DONE();
 }
+
 
 
 /* Try to create, open, and close a page file */
@@ -195,12 +203,9 @@ testOpenEachPage_checkValues(){
     dataToRead = getBlockPos(&fh);
     printf("dataToRead is : %d\n",dataToRead);    
 
-
     // change ph to be a string and write that one to disk
-    for (i=0; i < PAGE_SIZE; i++){
-    //printf("%d - ",ph[i]);
+    for (i=0; i < PAGE_SIZE; i++)
       ASSERT_TRUE((ph[i] == dataToRead), "character in page read from disk is the one we expected.");
-    }
    
   }
   
@@ -210,6 +215,99 @@ testOpenEachPage_checkValues(){
 
 
 }
+
+
+/* Try to seek to position ourside the file page range  */
+void
+testAccessPageOutOfRange(void)
+{
+  SM_FileHandle fh;
+  SM_PageHandle ph;
+
+  testName = "test accessing page which is out of range";
+  ph = (SM_PageHandle) malloc(PAGE_SIZE);
+
+  TEST_CHECK(createPageFile (TESTPF));
+  
+  TEST_CHECK(openPageFile (TESTPF, &fh));
+  ASSERT_TRUE(strcmp(fh.fileName, TESTPF) == 0, "filename correct");
+  ASSERT_TRUE((fh.totalNumPages == 1), "expect 1 page in new file");
+  ASSERT_TRUE((fh.curPagePos == 0), "freshly opened file's page position should be 0");
+
+  /* try to read next page which is not presetn */
+
+  TEST_CHECK_OUTOFRANGE(readNextBlock (&fh, ph));
+  TEST_CHECK_OUTOFRANGE(readPreviousBlock (&fh, ph));
+
+  TEST_CHECK(closePageFile (&fh));
+  TEST_CHECK(destroyPageFile (TESTPF));
+
+  TEST_DONE();
+}
+
+/* Test with NULL parameters */
+void
+testPassNULL(void)
+{
+
+  SM_PageHandle ph;
+
+  testName = "test for invalid parameters";
+  ph = (SM_PageHandle) malloc(PAGE_SIZE);
+  // read first page into handle
+  TEST_CEHCK_NULL(readFirstBlock (NULL, ph));
+  TEST_CEHCK_NULL(createPageFile (NULL));
+  TEST_CEHCK_NULL(openPageFile (NULL,NULL));
+  TEST_CEHCK_NULL(closePageFile (NULL));
+  TEST_CEHCK_NULL(destroyPageFile (NULL));
+
+  TEST_DONE();
+}
+
+
+/* test ensure capacity by giving page size and checking if page exists */
+void
+testEnsureCapacity(void)
+{
+
+  
+  SM_FileHandle fh;
+  SM_PageHandle ph;  
+  ph = (SM_PageHandle) malloc(PAGE_SIZE);
+  testName = "test to check ensure capacity";
+
+  TEST_CHECK(createPageFile (TESTPF));
+  
+  TEST_CHECK(openPageFile (TESTPF, &fh));
+  ASSERT_TRUE(strcmp(fh.fileName, TESTPF) == 0, "filename correct");
+  ASSERT_TRUE((fh.totalNumPages == 1), "expect 1 page in new file");
+  ASSERT_TRUE((fh.curPagePos == 0), "freshly opened file's page position should be 0");
+
+
+  TEST_CHECK(ensureCapacity(20,&fh));
+  TEST_CHECK(readLastBlock(&fh,ph));
+  ASSERT_TRUE(getBlockPos(&fh) == 19, "got expected value 19");
+
+  TEST_CHECK(closePageFile (&fh));
+  TEST_CHECK(destroyPageFile (TESTPF));
+  
+  TEST_DONE();
+
+}
+
+/*
+void
+testToRecreateExistingFile(void)
+{
+
+  testName = "test to check duplicate file creation";
+
+  TEST_DUPLICATE_CREATION(createPageFile (TESTPF3));
+  
+  TEST_DONE();
+}
+*/
+
 
 
 

@@ -34,7 +34,7 @@ RC createPageFile (char *fileName)
 	}
 	
 	// Create new file 
-	if ( (fd = open(fileName, O_WRONLY | O_CREAT | O_SYNC, FILE_MODE)) < 0) 
+	if ( (fd = open(fileName, O_WRONLY | O_CREAT | O_SYNC , FILE_MODE)) < 0) 
 	{
 		perror("Error creating page file");
 		return RC_FILE_NOT_FOUND;
@@ -46,7 +46,7 @@ RC createPageFile (char *fileName)
 	if ( (ret = write(fd, (void *) io_buffer, PAGE_SIZE)) < 0 ) 
 	{	
 		perror("Error writing to file");
-    		return RC_FILE_NOT_FOUND;
+    		return RC_FILE_SEEK_OR_IO_FAIL;
   	}
 	// Close file
 	sync();
