@@ -13,7 +13,7 @@
 #define FILE_MODE S_IRWXU | S_IRGRP | S_IROTH
 
 static char * io_buffer = NULL;
-const BOOL FORCE_DISK_IO = FALSE;
+const BOOL FORCE_DISK_IO = FALSE; //To force using file I/O instead of memory mapping
 
 void initStorageManager (void)
 {
@@ -26,7 +26,7 @@ RC createPageFile (char *fileName)
 	int fd;
 	int ret;
 
-	/* invalid or null pointer check*/	
+	/* Invalid or null pointer check*/	
 	if(fileName == NULL){
 		perror("Invalid parameter");
 		return RC_NULL_PARAM;
@@ -63,19 +63,21 @@ RC openPageFile (char *fileName, SM_FileHandle *fHandle)
 	size_t len_file;
 	char* addr = NULL;
 
-	/* invalid or null pointer check*/	
+	/* Invalid or null pointer check*/	
 	if(fileName == NULL || fHandle == NULL){
 		perror("Invalid parameter");
 		return RC_NULL_PARAM;
 
 	}
-
+	
+	//Open file to read/write
 	if ((fd = open(fileName, O_RDWR, FILE_MODE)) < 0)
 	{
 		perror("Error opening page file");
 		return RC_FILE_NOT_FOUND;
 	}
 
+	//Get file stat
 	if ((ret = fstat(fd, &st)) < 0)
 	{
 		perror("Error obtaining file stats");
@@ -85,13 +87,15 @@ RC openPageFile (char *fileName, SM_FileHandle *fHandle)
 	len_file = st.st_size;
 	
 	fHandle->fileName = fileName;
-	fHandle->totalNumPages = len_file / PAGE_SIZE;
+	fHandle->totalNumPages = len_file / PAGE_SIZE; //Since file grows in PAGE_SIZE units
 	fHandle->curPagePos = 0;
   	fHandle->mgmtInfo = malloc(sizeof(Mgmt_Info));
   	((Mgmt_Info*)fHandle->mgmtInfo)->fd = fd;
-
+	
+	//Check if forced to used disk io
 	if(FORCE_DISK_IO == FALSE) 
 	{		
+		//Memory map file		
 		if ((addr = mmap(NULL, len_file, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0)) == MAP_FAILED)
 		{
 			((Mgmt_Info*)fHandle->mgmtInfo)->mmapped = FALSE;
@@ -127,15 +131,19 @@ RC closePageFile (SM_FileHandle *fHandle)
 	int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
 	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
 	
+	// check if file is memory mapped
 	if(mmapped == TRUE)
 	{
+		//Sync Inmemory changes		
 		if((msync(addr,len,MS_SYNC)) < 0)
 			perror("Error in msync");
 
-	    	if(munmap(addr,len) == -1)
+		//Unmap file from memory	    	
+		if(munmap(addr,len) == -1)
 			perror("Error in munmap");
     	}
 	
+	//Close open file
 	close(fd);
 	
 	free(fHandle->mgmtInfo);
@@ -152,7 +160,8 @@ RC destroyPageFile (char *fileName)
 		return RC_NULL_PARAM;
 
 	}
-
+	
+	//Delete file from current directory
 	if((ret = unlink(fileName)) < 0){
   		perror("File not destroyed");
 		return RC_DELETE_FAILED;
@@ -176,6 +185,8 @@ RC readBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage)
 		perror("pageNum is out of bound");
 		return RC_PAGE_OUTOFBOUND;
 	}
+
+	// check if file is memory mapped
 	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
 	
 	if(mmapped == TRUE)
@@ -187,19 +198,24 @@ RC readBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage)
 	else
 	{
 		int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+		
+		//Seek to pageNum page
 		if(lseek(fd, (PAGE_SIZE * pageNum), SEEK_SET) == -1)
 		{
 			perror("Error seeking to page in file");
 			return RC_PAGE_OUTOFBOUND;
 		}
-
+		
+		//Read PAGE_SIZE data from file
  		if(read(fd, (void *) memPage, PAGE_SIZE) == -1)
  		{
  			perror("Error reading page in file");
 			return RC_PAGE_OUTOFBOUND;
 		}
 	}
-	fHandle->curPagePos = pageNum;
+	
+	//Set current page position to pageNum
+	fHandle->curPagePos = pageNum; 
 	return RC_OK;
 }
 
@@ -232,12 +248,15 @@ RC readFirstBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 	else
 	{
   		int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
-  		if(lseek(fd, 0, SEEK_SET) == -1)
+		
+		//Seek to first page  		
+		if(lseek(fd, 0, SEEK_SET) == -1)
 		{
 			perror("Error seeking to page in file");
 			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
-
+		
+		//Read PAGE_SIZE data from file
  		if(read(fd, (void *) memPage, PAGE_SIZE) == -1)
  		{
  			perror("Error reading page in file");
@@ -253,14 +272,21 @@ RC readFirstBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 RC readPreviousBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
 
+	void *addr;
+	int fd, PrevPagePos;
+
 	/* invalid or null pointer check*/	
 	if(fHandle == NULL){
 		perror("Invalid parameter");
 		return RC_NULL_PARAM;
+
 	}
 
 	/* avoid reading page number less than zero*/
-	if((fHandle->curPagePos - 1) < 0){
+	PrevPagePos = fHandle->curPagePos - 1;
+	
+	/* avoid reading page number less than zero*/
+	if(PrevPagePos < 0 || PrevPagePos >= fHandle->totalNumPages ){
 		perror("no previous block");
 		return RC_PAGE_OUTOFBOUND;
 	
@@ -271,18 +297,21 @@ RC readPreviousBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 	if(mmapped == TRUE)
 	{
 		// starting address + (currentPagePositon - 1) * pageSize
-		void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos - 1)*PAGE_SIZE);
+		addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+(PrevPagePos*PAGE_SIZE);
 		memcpy(memPage,addr,PAGE_SIZE);
 	}
 	else
 	{
-		int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
-		if(lseek(fd, -PAGE_SIZE, SEEK_CUR) == -1)
+		fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+		
+		//Seek to previous page 		
+		if(lseek(fd, PrevPagePos * PAGE_SIZE, SEEK_SET) == -1)
 		{
 			perror("Error seeking to page in file");
 			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
-
+		
+		//Read PAGE_SIZE data from file
  		if(read(fd, (void *) memPage, PAGE_SIZE) == -1)
  		{
  			perror("Error reading page in file");
@@ -325,19 +354,21 @@ RC readCurrentBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 	{
 		fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
 
+		// seek to current page position
 		if(lseek(fd, curPage*PAGE_SIZE, SEEK_SET) == -1)
 		{
 			perror("Error seeking to page in file");
 			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 
+		// read PAGE_SIZE data from file
 		if(read(fd, (void *) memPage, PAGE_SIZE) == -1)
  		{
  			perror("Error reading page in file");
 			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 	}
-	//fHandle->curPagePos = 1;  // no need to update
+	
 	return RC_OK;
 }
 
@@ -361,6 +392,7 @@ RC readNextBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 		return RC_PAGE_OUTOFBOUND;
 	}
 
+	// check if file is memory mapped
 	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
 	
 	if(mmapped == TRUE)
@@ -372,12 +404,14 @@ RC readNextBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 	else
 	{
 		fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+		// seek to nextpage
 		if(lseek(fd, nextPagePos*PAGE_SIZE, SEEK_SET) == -1)
 		{
 			perror("Error seeking to page in file");
 			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 
+		//read a page from seeked position
  		if(read(fd, (void *) memPage, PAGE_SIZE) == -1)
  		{
  			perror("Error reading page in file");
@@ -411,12 +445,14 @@ RC readLastBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 	else
 	{
 		fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+		// seek PAGE_SIZE back from the end of the file
 		if(lseek(fd, -PAGE_SIZE, SEEK_END) == -1)
 		{
 			perror("Error seeking to page in file");
 			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 
+		//read the last page of the file
  		if(read(fd, (void *) memPage, PAGE_SIZE) == -1)
  		{
  			perror("Error reading page in file");
@@ -459,18 +495,22 @@ RC writeBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage)
 	else
 	{
 		fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+		// seek to pageNum
 		if(lseek(fd, (PAGE_SIZE * pageNum), SEEK_SET) == -1)
 		{
 			perror("Error seeking to page in file");
 			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 
+		// write memPage content to seeked position
  		if(write(fd, (void *) memPage, PAGE_SIZE) == -1)
  		{
  			perror("Error writing page in file");
 			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 	}
+
+	// update current position 
 	fHandle->curPagePos = pageNum;
 	return RC_OK;
 }
@@ -508,12 +548,14 @@ RC writeCurrentBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 	{
 		fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
 		pageNum = fHandle->curPagePos;
+		// seek to current page position
 		if(lseek(fd, (PAGE_SIZE * pageNum), SEEK_SET) == -1)
 		{
 			perror("Error seeking to page in file");
 			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 
+		// write data to seeked position
 		if(write(fd, (void *) memPage, PAGE_SIZE) == -1)
  		{
  			perror("Error writing page in file");
@@ -541,6 +583,7 @@ RC appendEmptyBlock (SM_FileHandle *fHandle)
         int new_len = (fHandle->totalNumPages * PAGE_SIZE) + PAGE_SIZE;
         int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
         
+	//Increase file size on disk by PAGE_SIZE bytes
         if (ftruncate(fd, new_len) != 0)
         {
             perror("Error extending file");
@@ -554,12 +597,15 @@ RC appendEmptyBlock (SM_FileHandle *fHandle)
 		len = ((Mgmt_Info*)fHandle->mgmtInfo)->map_size;
 		addr = ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr;
 		
-		if ((addr = mremap(addr, len, new_len, MREMAP_MAYMOVE)) == MAP_FAILED)
+		//File has to be remapped to new size
+		if ((addr = mremap(addr, len, new_len, MREMAP_MAYMOVE)) == MAP_FAILED) //MREMAP_MAYMOVE - may remap the file to different address range
 		{
 		    	perror("Error extending mapping");
-		    	((Mgmt_Info*)fHandle->mgmtInfo)->mmapped = FALSE;
 		    	
-
+			//If remap fails fall back to reading/writing file on disk
+			((Mgmt_Info*)fHandle->mgmtInfo)->mmapped = FALSE;
+		    	
+			//Seek to newly appended page
 			if(lseek(fd, -PAGE_SIZE, SEEK_END) == -1)
 			{
 				perror("Error seeking to page in file");
@@ -568,6 +614,7 @@ RC appendEmptyBlock (SM_FileHandle *fHandle)
 			
 			memset((void *) io_buffer, 0, PAGE_SIZE);
 			
+			//Write Zero to newly appended page
 	 		if(write(fd, (void *) io_buffer, PAGE_SIZE) == -1)
 	 		{
 	 			perror("Error writing page in file");
@@ -578,11 +625,14 @@ RC appendEmptyBlock (SM_FileHandle *fHandle)
 		{
 			((Mgmt_Info*)fHandle->mgmtInfo)->map_addr = addr;
         		((Mgmt_Info*)fHandle->mgmtInfo)->map_size = new_len;
-        		memset(addr+len, '0', PAGE_SIZE);
+			
+			//Write Zero to newly appended page        		
+			memset(addr+len, '0', PAGE_SIZE);
 		}
         }
         else
         {
+		//Seek to newly appended page
         	if(lseek(fd, -PAGE_SIZE, SEEK_END) == -1)
 		{
 			perror("Error seeking to page in file");
@@ -591,6 +641,7 @@ RC appendEmptyBlock (SM_FileHandle *fHandle)
 		
 		memset((void *) io_buffer, 0, PAGE_SIZE);
 		
+		//Write Zero to newly appended page
  		if(write(fd, (void *) io_buffer, PAGE_SIZE) == -1)
  		{
  			perror("Error writing page in file");
@@ -598,8 +649,10 @@ RC appendEmptyBlock (SM_FileHandle *fHandle)
 		}
 	}
         
-
+	//Increase total page count by 1
         fHandle->totalNumPages += 1;
+
+	//Update current page position to last appended page
         fHandle->curPagePos = fHandle->totalNumPages - 1;
         
 	return RC_OK;
@@ -615,6 +668,7 @@ RC ensureCapacity (int numberOfPages, SM_FileHandle *fHandle)
 
 	}
 
+	//Append more pages to ensure capacity
 	while(fHandle->totalNumPages < numberOfPages)
     		appendEmptyBlock(fHandle);
   	return RC_OK;

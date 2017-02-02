@@ -11,10 +11,10 @@
  *                    handle data structures                *
  ************************************************************/
 typedef struct _Mgmt_Info {
-  int fd;
-  BOOL mmapped;
-  char * map_addr;
-  int map_size;
+  int fd;  //File Descriptor
+  BOOL mmapped; //Memory Mapped or not
+  char * map_addr; //address of mapped memory
+  int map_size; //Size of mapped memory
 } Mgmt_Info;
  
 typedef struct SM_FileHandle {
