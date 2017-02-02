@@ -75,7 +75,17 @@ SL NO 		NAME				DESCRIPTION
 
 DESIGN DESCRIPTION & FUTURE WORK:
 
-In our implementation of storage manager we map page file to memory whenever it is possible to do so. Memory mapping page file improves I/O performance of the storage manager and overall performance of the system which will be built upon this. Also from the storage manager's perspective it becomes natural way of handling any disk I/O instead of performing the file read/write operations. One drawback of memory mapping files is that it might not be always possible to memory map a file based on the current memory usage by the system. This drawback can be handled by either by mapping part of file and remapping whenever necessary or rollback to conventional file read/write. In our implementation we have rollback mechanism to use conventional file read/write whenever file mapping fails. Complete memory mapped handling of page file is future work which involves much more intelligent way of mapping and remapping parts of file to improve performance.
+In our implementation of storage manager we map page file to memory whenever it is possible to do so. 
+Memory mapping page file improves I/O performance of the storage manager and overall performance of the system which will be built upon this. 
+Also from the storage manager's perspective it becomes natural way of handling any disk I/O instead of performing the file read/write operations. 
+One drawback of memory mapping files is that it might not be always possible to memory map a file based on the current memory usage by the 
+system. 
+
+This drawback can be handled by either by mapping part of file and remapping whenever necessary or rollback to conventional file 
+read/write.
+In our implementation we have rollback mechanism to use conventional file read/write whenever file mapping fails.
+Complete memory mapped handling of page file is future work which involves much more intelligent way of mapping and remapping parts of file 
+to improve performance.
 
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -108,31 +118,29 @@ SL NO		Objective						Observed result			Expected result
 9.		Try to read previously written file with all variants	Blocks are read correctly based Blocks should be read correctly based
 		of read API						on their position		on their position
 
-10.		Trying to create a new file with the name of an		Throws an error			Error expected
-		existing file
 
-11.		Trying to create a new file with the file name		Throws an error			Error expected
+10.		Trying to create a new file with the file name		Throws an error			Error expected
 		containing invalid characters
 
-12.		Trying to open a file which exists			File is opened sucessfully	File should be opened sucessfully
+11.		Trying to open a file which exists			File is opened sucessfully	File should be opened sucessfully
 
-13.		Trying to open a file which is already opened		Throws an error			Error expected
+12.		Trying to open a file which is already opened		Throws an error			Error expected
 
-14. 		Trying to close a file which does not exist		Throws an error			Error expected
+13. 		Trying to close a file which does not exist		Throws an error			Error expected
 
-15.		Trying to close a file which is already closed 		Throws an error			Error expected
+14.		Trying to close a file which is already closed 		Throws an error			Error expected
 
-16.		Trying to read a block beyond the page size 		Throws an error 		Error Expected
+15.		Trying to read a block beyond the page size 		Throws an error 		Error Expected
 
-17.		Trying to write a block beyond the page size		Throws an error			Error Expected
+16.		Trying to write a block beyond the page size		Throws an error			Error Expected
 
-18.		Verifying if the current page position is updated	Page position is updated	Page position should be updated
+17.		Verifying if the current page position is updated	Page position is updated	Page position should be updated
 		with each read/write operation				correctly			correctly
 
-19.		Try to append a empty page to a open file & verify	Appends successfully		Page should be appended successfully
+18.		Try to append a empty page to a open file & verify	Appends successfully		Page should be appended successfully
 
-20.		Verify ensure capacity by reading block at the end of	ensure capacity successfully	ensure capacity should be successfully
-		file							verified			verified
+19.		Verify ensure capacity by reading block at the end	Ensure capacity successfully Ensure capacity should be successfully verified
+		of the file											verified
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 			
