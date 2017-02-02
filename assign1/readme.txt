@@ -80,7 +80,6 @@ Memory mapping page file improves I/O performance of the storage manager and ove
 Also from the storage manager's perspective it becomes natural way of handling any disk I/O instead of performing the file read/write operations. 
 One drawback of memory mapping files is that it might not be always possible to memory map a file based on the current memory usage by the 
 system. 
-
 This drawback can be handled by either by mapping part of file and remapping whenever necessary or rollback to conventional file 
 read/write.
 In our implementation we have rollback mechanism to use conventional file read/write whenever file mapping fails.
@@ -139,8 +138,8 @@ SL NO		Objective						Observed result			Expected result
 
 18.		Try to append a empty page to a open file & verify	Appends successfully		Page should be appended successfully
 
-19.		Verify ensure capacity by reading block at the end	Ensure capacity successfully Ensure capacity should be successfully verified
-		of the file											verified
+19.		Verify ensure capacity by reading block at the end	Ensure capacity successfully 	Ensure capacity should be successfully 			of the file						verified			verified			
+												
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 			
