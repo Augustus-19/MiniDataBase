@@ -31,10 +31,10 @@ main (void)
   
   initStorageManager();
 
-  //testCreateOpenClose();
-  //testSinglePageContent();
+  testCreateOpenClose();
+  testSinglePageContent();
   /*new test cases */
-  //testTryToOpenWrongFile();  
+  testTryToOpenWrongFile();  
   testOpenEachPage_checkValues();
 
   return 0;
@@ -51,6 +51,7 @@ testCreateOpenClose(void)
   testName = "test create open and close methods";
 
   TEST_CHECK(createPageFile (TESTPF));
+  printf("first\n");
   
   TEST_CHECK(openPageFile (TESTPF, &fh));
   ASSERT_TRUE(strcmp(fh.fileName, TESTPF) == 0, "filename correct");
@@ -114,11 +115,8 @@ void
 testTryToOpenWrongFile(void){
 
   SM_FileHandle fh;
-  SM_PageHandle ph;
-  int i;
-
+  
   testName = "try to open wrong file";
-  ph = (SM_PageHandle) malloc(PAGE_SIZE);
 
   // create a new page file
   TEST_CHECK(createPageFile (TESTPF));
@@ -154,7 +152,7 @@ testOpenEachPage_checkValues(){
   int i, j;
   int dataToWrite,dataToRead;
 
-  testName = "try to open wrong file";
+  testName = "Test each page content";
   ph = (SM_PageHandle) malloc(PAGE_SIZE);
 
   // create a new page file
@@ -177,15 +175,12 @@ testOpenEachPage_checkValues(){
 
     // write content of page as position of the page
     dataToWrite = getBlockPos(&fh);
-    printf("dataToWrite is : %d\n",dataToWrite);
 
     // change ph to be a string and write that one to disk
     for (i=0; i < PAGE_SIZE; i++)
       ph[i] = dataToWrite;
     TEST_CHECK(writeBlock (dataToWrite, &fh, ph));
     TEST_CHECK(appendEmptyBlock(&fh));
-    printf("end of writing %d block\n",dataToWrite);
-
 
   }
 
@@ -193,7 +188,7 @@ testOpenEachPage_checkValues(){
     if(j == 0){
        TEST_CHECK(readFirstBlock (&fh, ph));
     }else{
-       TEST_CHECK(readNextBlock ( &fh, ph));
+       TEST_CHECK(readNextBlock (&fh, ph));
     }
 
     // read content of page as position of the page
@@ -202,10 +197,11 @@ testOpenEachPage_checkValues(){
 
 
     // change ph to be a string and write that one to disk
-    for (i=0; i < PAGE_SIZE; i++)
+    for (i=0; i < PAGE_SIZE; i++){
+    //printf("%d - ",ph[i]);
       ASSERT_TRUE((ph[i] == dataToRead), "character in page read from disk is the one we expected.");
-    printf("End of reading %d block\n",dataToRead);
-
+    }
+   
   }
   
   // destroy new page file

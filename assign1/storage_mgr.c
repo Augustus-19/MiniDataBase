@@ -13,6 +13,7 @@
 #define FILE_MODE S_IRWXU | S_IRGRP | S_IROTH
 
 static char * io_buffer = NULL;
+const BOOL FORCE_DISK_IO = FALSE;
 
 void initStorageManager (void)
 {
@@ -89,16 +90,23 @@ RC openPageFile (char *fileName, SM_FileHandle *fHandle)
   	fHandle->mgmtInfo = malloc(sizeof(Mgmt_Info));
   	((Mgmt_Info*)fHandle->mgmtInfo)->fd = fd;
 
-	if ((addr = mmap(NULL, len_file, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0)) == MAP_FAILED)
+	if(FORCE_DISK_IO == FALSE) 
+	{		
+		if ((addr = mmap(NULL, len_file, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0)) == MAP_FAILED)
+		{
+			((Mgmt_Info*)fHandle->mgmtInfo)->mmapped = FALSE;
+			perror("Error memory mapping file");
+		}
+		else
+		{
+			((Mgmt_Info*)fHandle->mgmtInfo)->mmapped = TRUE;
+			((Mgmt_Info*)fHandle->mgmtInfo)->map_addr = addr;	
+	  		((Mgmt_Info*)fHandle->mgmtInfo)->map_size = len_file;
+		}
+	}
+	else 
 	{
 		((Mgmt_Info*)fHandle->mgmtInfo)->mmapped = FALSE;
-		perror("Error memory mapping file");
-	}
-	else
-	{
-		((Mgmt_Info*)fHandle->mgmtInfo)->mmapped = TRUE;
-		((Mgmt_Info*)fHandle->mgmtInfo)->map_addr = addr;	
-  		((Mgmt_Info*)fHandle->mgmtInfo)->map_size = len_file;
 	}
 	
 	return RC_OK;
@@ -121,12 +129,12 @@ RC closePageFile (SM_FileHandle *fHandle)
 	
 	if(mmapped == TRUE)
 	{
-			if((msync(addr,len,MS_SYNC)) < 0)
+		if((msync(addr,len,MS_SYNC)) < 0)
 			perror("Error in msync");
 
 	    	if(munmap(addr,len) == -1)
 			perror("Error in munmap");
-    }
+    	}
 	
 	close(fd);
 	
@@ -227,13 +235,13 @@ RC readFirstBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
   		if(lseek(fd, 0, SEEK_SET) == -1)
 		{
 			perror("Error seeking to page in file");
-			return RC_PAGE_OUTOFBOUND;
+			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 
  		if(read(fd, (void *) memPage, PAGE_SIZE) == -1)
  		{
  			perror("Error reading page in file");
-			return RC_PAGE_OUTOFBOUND;
+			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 	}
 	
@@ -272,13 +280,13 @@ RC readPreviousBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 		if(lseek(fd, -PAGE_SIZE, SEEK_CUR) == -1)
 		{
 			perror("Error seeking to page in file");
-			return RC_PAGE_OUTOFBOUND;
+			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 
  		if(read(fd, (void *) memPage, PAGE_SIZE) == -1)
  		{
  			perror("Error reading page in file");
-			return RC_PAGE_OUTOFBOUND;
+			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 	}
 	
@@ -289,27 +297,44 @@ RC readPreviousBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 
 RC readCurrentBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
+	void *addr;
+	int fd, curPage;
+
+	curPage = fHandle->curPagePos;
 	/* invalid or null pointer check*/	
 	if(fHandle == NULL){
 		perror("Invalid parameter");
 		return RC_NULL_PARAM;
 	}
-	
+
+	/* to handle page out of bound*/
+	if((curPage >= fHandle->totalNumPages) || (curPage < 0)){
+		perror("!!! Should Not Enter this ");
+		return RC_PAGE_OUTOFBOUND;
+	}	
+
 	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
 	
 	if(mmapped == TRUE)
 	{
 		// starting address + (currentPagePositon * pageSize)
-		void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos)*PAGE_SIZE);
+		addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+(curPage*PAGE_SIZE);
 		memcpy(memPage,addr,PAGE_SIZE);
 	}
 	else
 	{
-		int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+		fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+
+		if(lseek(fd, curPage*PAGE_SIZE, SEEK_SET) == -1)
+		{
+			perror("Error seeking to page in file");
+			return RC_FILE_SEEK_OR_IO_FAIL;
+		}
+
 		if(read(fd, (void *) memPage, PAGE_SIZE) == -1)
  		{
  			perror("Error reading page in file");
-			return RC_PAGE_OUTOFBOUND;
+			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 	}
 	//fHandle->curPagePos = 1;  // no need to update
@@ -319,6 +344,9 @@ RC readCurrentBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 RC readNextBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
 
+	void *addr;
+	int fd, nextPagePos;
+
 	/* invalid or null pointer check*/	
 	if(fHandle == NULL){
 		perror("Invalid parameter");
@@ -327,10 +355,10 @@ RC readNextBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 	}
 
 	/* avoid reading page number less than zero*/
-	if((fHandle->curPagePos + 1) >= fHandle->totalNumPages){
+	nextPagePos = fHandle->curPagePos + 1;
+	if(nextPagePos >= fHandle->totalNumPages){
 		perror("no next block");
 		return RC_PAGE_OUTOFBOUND;
-	
 	}
 
 	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
@@ -338,22 +366,22 @@ RC readNextBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 	if(mmapped == TRUE)
 	{
 		// starting address + (currentPagePositon + 1) * pageSize
-		void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos + 1)*PAGE_SIZE);
+		addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+(nextPagePos*PAGE_SIZE);
 		memcpy(memPage,addr,PAGE_SIZE);
 	}
 	else
 	{
-		int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
-		if(lseek(fd, +PAGE_SIZE, SEEK_CUR) == -1)
+		fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+		if(lseek(fd, nextPagePos*PAGE_SIZE, SEEK_SET) == -1)
 		{
 			perror("Error seeking to page in file");
-			return RC_PAGE_OUTOFBOUND;
+			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 
  		if(read(fd, (void *) memPage, PAGE_SIZE) == -1)
  		{
  			perror("Error reading page in file");
-			return RC_PAGE_OUTOFBOUND;
+			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 	}
 	fHandle->curPagePos++;
@@ -362,6 +390,8 @@ RC readNextBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 
 RC readLastBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
+	void *addr;
+	int fd;
 
 	/* invalid or null pointer check*/	
 	if(fHandle == NULL){
@@ -375,22 +405,22 @@ RC readLastBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 	if(mmapped == TRUE)
 	{
 		// starting address + (totalNumPages - 1) * pageSize
-		void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->totalNumPages - 1) * PAGE_SIZE);
+		addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->totalNumPages - 1) * PAGE_SIZE);
 		memcpy(memPage, addr, PAGE_SIZE);
 	}
 	else
 	{
-		int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+		fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
 		if(lseek(fd, -PAGE_SIZE, SEEK_END) == -1)
 		{
 			perror("Error seeking to page in file");
-			return RC_PAGE_OUTOFBOUND;
+			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 
  		if(read(fd, (void *) memPage, PAGE_SIZE) == -1)
  		{
  			perror("Error reading page in file");
-			return RC_PAGE_OUTOFBOUND;
+			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 	}
 	fHandle->curPagePos = fHandle->totalNumPages - 1;
@@ -401,7 +431,10 @@ RC readLastBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 /* writing blocks to a page file */
 RC writeBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
+	void *addr;
+	int fd;
 
+	pageNum = fHandle->curPagePos;
 	/* invalid or null pointer check*/	
 	if(fHandle == NULL){
 		perror("Invalid parameter");
@@ -419,23 +452,23 @@ RC writeBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage)
 	if(mmapped == TRUE)
 	{
 
-		void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr + (PAGE_SIZE*pageNum));
+		addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr + (PAGE_SIZE*pageNum));
 		// read page from => startOfMemory + ( pageSize * pageNumber)
 		memcpy(addr, memPage, PAGE_SIZE);
 	}
 	else
 	{
-		int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+		fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
 		if(lseek(fd, (PAGE_SIZE * pageNum), SEEK_SET) == -1)
 		{
 			perror("Error seeking to page in file");
-			return RC_PAGE_OUTOFBOUND;
+			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 
  		if(write(fd, (void *) memPage, PAGE_SIZE) == -1)
  		{
  			perror("Error writing page in file");
-			return RC_PAGE_OUTOFBOUND;
+			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 	}
 	fHandle->curPagePos = pageNum;
@@ -445,11 +478,22 @@ RC writeBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage)
 RC writeCurrentBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
 
+	void *addr;
+	int fd, pageNum;
+
+
 	/* invalid or null pointer check*/	
 	if(fHandle == NULL){
 		perror("Invalid parameter");
 		return RC_NULL_PARAM;
 
+	}
+
+	pageNum = fHandle->curPagePos;
+	/* to handle page out of bound*/
+	if((pageNum >= fHandle->totalNumPages) || (pageNum < 0)){
+		perror("!!! Should Not Enter this ");
+		return RC_PAGE_OUTOFBOUND;
 	}
 	
 	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
@@ -457,16 +501,23 @@ RC writeCurrentBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 	if(mmapped == TRUE)
 	{
 		// starting address + (currentPagePositon * pageSize)
-		void *addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+((fHandle->curPagePos)*PAGE_SIZE);
+		addr = (((Mgmt_Info*)fHandle->mgmtInfo)->map_addr)+(pageNum*PAGE_SIZE);
 		memcpy(addr, memPage, PAGE_SIZE);
 	}
 	else
 	{
-		int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+		fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
+		pageNum = fHandle->curPagePos;
+		if(lseek(fd, (PAGE_SIZE * pageNum), SEEK_SET) == -1)
+		{
+			perror("Error seeking to page in file");
+			return RC_FILE_SEEK_OR_IO_FAIL;
+		}
+
 		if(write(fd, (void *) memPage, PAGE_SIZE) == -1)
  		{
  			perror("Error writing page in file");
-			return RC_PAGE_OUTOFBOUND;
+			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 	}
         /* no need to update position */
@@ -475,6 +526,10 @@ RC writeCurrentBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 
 RC appendEmptyBlock (SM_FileHandle *fHandle)
 {
+
+	char * addr;
+	int len;
+
 
 	/* invalid or null pointer check*/	
 	if(fHandle == NULL){
@@ -496,8 +551,8 @@ RC appendEmptyBlock (SM_FileHandle *fHandle)
 	
 	if(mmapped == TRUE) 
 	{
-		int len = ((Mgmt_Info*)fHandle->mgmtInfo)->map_size;
-		char * addr = ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr;
+		len = ((Mgmt_Info*)fHandle->mgmtInfo)->map_size;
+		addr = ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr;
 		
 		if ((addr = mremap(addr, len, new_len, MREMAP_MAYMOVE)) == MAP_FAILED)
 		{
@@ -508,7 +563,7 @@ RC appendEmptyBlock (SM_FileHandle *fHandle)
 			if(lseek(fd, -PAGE_SIZE, SEEK_END) == -1)
 			{
 				perror("Error seeking to page in file");
-				return RC_PAGE_OUTOFBOUND;
+				return RC_FILE_SEEK_OR_IO_FAIL;
 			}
 			
 			memset((void *) io_buffer, 0, PAGE_SIZE);
@@ -516,7 +571,7 @@ RC appendEmptyBlock (SM_FileHandle *fHandle)
 	 		if(write(fd, (void *) io_buffer, PAGE_SIZE) == -1)
 	 		{
 	 			perror("Error writing page in file");
-				return RC_PAGE_OUTOFBOUND;
+				return RC_FILE_SEEK_OR_IO_FAIL;
 			}
 		}
 		else
@@ -531,7 +586,7 @@ RC appendEmptyBlock (SM_FileHandle *fHandle)
         	if(lseek(fd, -PAGE_SIZE, SEEK_END) == -1)
 		{
 			perror("Error seeking to page in file");
-			return RC_PAGE_OUTOFBOUND;
+			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 		
 		memset((void *) io_buffer, 0, PAGE_SIZE);
@@ -539,7 +594,7 @@ RC appendEmptyBlock (SM_FileHandle *fHandle)
  		if(write(fd, (void *) io_buffer, PAGE_SIZE) == -1)
  		{
  			perror("Error writing page in file");
-			return RC_PAGE_OUTOFBOUND;
+			return RC_FILE_SEEK_OR_IO_FAIL;
 		}
 	}
         
