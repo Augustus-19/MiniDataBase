@@ -3,9 +3,20 @@
 
 #include "dberror.h"
 
+#define BOOL int
+#define TRUE 1
+#define FALSE 0
+
 /************************************************************
  *                    handle data structures                *
  ************************************************************/
+typedef struct _Mgmt_Info {
+  int fd;  //File Descriptor
+  BOOL mmapped; //Memory Mapped or not
+  char * map_addr; //address of mapped memory
+  int map_size; //Size of mapped memory
+} Mgmt_Info;
+ 
 typedef struct SM_FileHandle {
   char *fileName;
   int totalNumPages;

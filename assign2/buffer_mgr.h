@@ -20,6 +20,10 @@ typedef enum ReplacementStrategy {
 typedef int PageNumber;
 #define NO_PAGE -1
 
+typedef struct _BM_Pool_Mgmt_Info {
+  char * bm_pool_addr; //address of buffer pool
+} BM_Pool_Mgmt_Info;
+
 typedef struct BM_BufferPool {
   char *pageFile;
   int numPages;
