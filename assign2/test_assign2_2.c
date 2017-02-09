@@ -165,7 +165,7 @@ createDummyPages(BM_BufferPool *bm, int num)
 void 
 readAndCheckDummyPage(BM_BufferPool *bm, int pageNum)
 {
-  int i;
+  //int i;
   BM_PageHandle *h = MAKE_PAGE_HANDLE();
   char *expected = malloc(sizeof(char) * 512);
 
@@ -354,7 +354,7 @@ testLRU (void)
   };
   const int orderRequests[] = {3,4,0,2,1};
   const int numLRUOrderChange = 5;
-  const int numChangeRequests = 3;
+  //const int numChangeRequests = 3;
 
   int i;
   int snapshot = 0;
@@ -407,7 +407,7 @@ testLRU (void)
 void
 testError (void)
 {
-  int i;
+  //int i;
   BM_BufferPool *bm = MAKE_POOL();
   BM_PageHandle *h = MAKE_PAGE_HANDLE();
   testName = "Testing LRU page replacement";

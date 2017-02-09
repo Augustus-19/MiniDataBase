@@ -13,7 +13,7 @@
 #define FILE_MODE S_IRWXU | S_IRGRP | S_IROTH
 
 static char * io_buffer = NULL;
-const BOOL FORCE_DISK_IO = TRUE; //To force using file I/O instead of memory mapping
+const bool FORCE_DISK_IO = TRUE; //To force using file I/O instead of memory mapping
 
 void initStorageManager (void)
 {
@@ -129,7 +129,7 @@ RC closePageFile (SM_FileHandle *fHandle)
 	char* addr = ((Mgmt_Info*)fHandle->mgmtInfo)->map_addr;
 	size_t len = ((Mgmt_Info*)fHandle->mgmtInfo)->map_size;
 	int fd = ((Mgmt_Info*)fHandle->mgmtInfo)->fd;
-	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
+	bool mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
 	
 	// check if file is memory mapped
 	if(mmapped == TRUE)
@@ -187,7 +187,7 @@ RC readBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage)
 	}
 
 	// check if file is memory mapped
-	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
+	bool mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
 	
 	if(mmapped == TRUE)
 	{
@@ -238,7 +238,7 @@ RC readFirstBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 		return RC_NULL_PARAM;
 	}
 	
-	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
+	bool mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
 	
 	if(mmapped == TRUE)
 	{
@@ -292,7 +292,7 @@ RC readPreviousBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 	
 	}
 	
-	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
+	bool mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
 	
 	if(mmapped == TRUE)
 	{
@@ -342,7 +342,7 @@ RC readCurrentBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 		return RC_PAGE_OUTOFBOUND;
 	}	
 
-	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
+	bool mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
 	
 	if(mmapped == TRUE)
 	{
@@ -393,7 +393,7 @@ RC readNextBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 	}
 
 	// check if file is memory mapped
-	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
+	bool mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
 	
 	if(mmapped == TRUE)
 	{
@@ -434,7 +434,7 @@ RC readLastBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 
 	}
 	
-	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
+	bool mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
 	
 	if(mmapped == TRUE)
 	{
@@ -483,7 +483,7 @@ RC writeBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage)
 		return RC_PAGE_OUTOFBOUND;
 	}
 	
-	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
+	bool mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
 	
 	if(mmapped == TRUE)
 	{
@@ -536,7 +536,7 @@ RC writeCurrentBlock (SM_FileHandle *fHandle, SM_PageHandle memPage)
 		return RC_PAGE_OUTOFBOUND;
 	}
 	
-	BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
+	bool mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
 	
 	if(mmapped == TRUE)
 	{
@@ -590,7 +590,7 @@ RC appendEmptyBlock (SM_FileHandle *fHandle)
             return RC_FILE_NOT_EXTENSIBLE;
         }
         
-        BOOL mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
+        bool mmapped = ((Mgmt_Info*)fHandle->mgmtInfo)->mmapped;
 	
 	if(mmapped == TRUE) 
 	{

@@ -40,21 +40,21 @@ RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page,
 // Statistics Interface
 PageNumber *getFrameContents (BM_BufferPool *const bm)
 {
-	
+	return NULL;
 }
 bool *getDirtyFlags (BM_BufferPool *const bm)
 {
-
+	return NULL;
 }
 int *getFixCounts (BM_BufferPool *const bm)
 {
-	
+	return NULL;
 }
 int getNumReadIO (BM_BufferPool *const bm)
 {
-	
+	return 0;
 }
 int getNumWriteIO (BM_BufferPool *const bm)
 {
-	
+	return 0;
 }
