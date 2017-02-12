@@ -28,6 +28,7 @@ typedef struct _BM_Pool_Mgmt_Info {
   PAGE_FRAME * poolAddr; //address of buffer pool
   PageNumber* pageNums;
   bool* dirtyFlags;
+  int* fixCount;
   int readCount;
   int writeCount;
   void * stratData;
