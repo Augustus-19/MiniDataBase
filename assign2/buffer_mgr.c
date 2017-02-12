@@ -1,4 +1,5 @@
 // Include buffer_mgr.h
+#include <stdlib.h>
 #include "buffer_mgr.h"
 #include "storage_mgr.h"
 #include "string.h"
@@ -193,6 +194,7 @@ RC markDirty (BM_BufferPool *const bm, BM_PageHandle *const page)
 {
 	RC retVal = RC_OK;
 	BM_Pool_Mgmt_Info* mgmtInfo = NULL;
+	int pageSlot = NO_PAGE;
 	
 	if(bm == NULL || page == NULL)
 	{
@@ -215,6 +217,7 @@ RC unpinPage (BM_BufferPool *const bm, BM_PageHandle *const page)
 {
 	RC retVal = RC_OK;
 	BM_Pool_Mgmt_Info* mgmtInfo = NULL;
+	int pageSlot = NO_PAGE;
 	
 	if(bm == NULL || page == NULL)
 	{
@@ -238,7 +241,7 @@ RC unpinPage (BM_BufferPool *const bm, BM_PageHandle *const page)
 		mgmtInfo->dirtyFlags[pageSlot] = FALSE;
 		
 		*/
-		mgmtInfo->fixCount[i]--;
+		mgmtInfo->fixCount[pageSlot]--;
 	}
 	
 end:	
@@ -281,7 +284,6 @@ RC forcePage (BM_BufferPool *const bm, BM_PageHandle *const page)
 			
 			mgmtInfo->writeCount += 1;
 			mgmtInfo->dirtyFlags[pageSlot] = FALSE;
-			break;
 		}
 	}
 
@@ -310,11 +312,11 @@ RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page,
 	
 	mgmtInfo = bm->mgmtData;
 	
-	if ((pageSlot = findPageinPool(bm, pageNum) != NO_PAGE)
+	if ((pageSlot = findPageinPool(bm, pageNum) != NO_PAGE))
 	{
 		page->pageNum = pageNum;
 		page->data = (char*)&(mgmtInfo->poolAddr[pageSlot]);
-		goto end
+		goto end;
 	}
 	
 	if((pageSlot = getBufferPoolSlot(bm)) != NO_PAGE)
@@ -341,7 +343,8 @@ RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page,
 	}
 
 end:	
-	mgmtInfo->fixCount[i]++;
+	mgmtInfo->fixCount[pageSlot]++;
+	
 	if(pageFileOpen == TRUE)
 		retVal = closePageFile(&fh);
 	
