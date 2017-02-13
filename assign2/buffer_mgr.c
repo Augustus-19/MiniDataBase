@@ -150,7 +150,7 @@ int getPageSlotLRU(BM_BufferPool *const bm){
 	}
 
 	// search for the page whose count is zero
-	while (tempHead->NEXT != NULL && mgmtInfo->fixCount[tempHead->frameNumber] > 0) {
+	while ((tempHead->NEXT != NULL) && (mgmtInfo->fixCount[tempHead->NEXT->frameNumber] > 0)) {
 		tempHead = tempHead->NEXT;
 	}
 
@@ -164,9 +164,15 @@ int getPageSlotLRU(BM_BufferPool *const bm){
 		queue->allotedTail->NEXT = tempHead->NEXT;
 		queue->allotedTail = tempHead->NEXT;
 		tempHead->NEXT = tempHead->NEXT->NEXT;
-		return pageSlot;
+		queue->allotedTail->NEXT = NULL;
+		
+	}
+	else {
+		pageSlot = NO_PAGE;
 	}
 
+
+	return pageSlot;
 }
 
 int getBufferPoolSlot(BM_BufferPool *const bm)
@@ -462,7 +468,7 @@ RC unpinPage (BM_BufferPool *const bm, BM_PageHandle *const page)
 		mgmtInfo->dirtyFlags[pageSlot] = FALSE;
 		
 		*/
-		mgmtInfo->fixCount[pageSlot]--;
+			(mgmtInfo->fixCount[pageSlot])--;
 	}
 	
 end:	
@@ -533,7 +539,7 @@ RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page,
 	
 	mgmtInfo = bm->mgmtData;
 	
-	if ((pageSlot = findPageinPool(bm, pageNum) != NO_PAGE))
+	if ((pageSlot = findPageinPool(bm, pageNum)) != NO_PAGE)
 	{
 		page->pageNum = pageNum;
 		page->data = (char*)&(mgmtInfo->poolAddr[pageSlot]);
@@ -543,7 +549,7 @@ RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page,
 		// if the selected page is dirty then make sure its written back before data is overwritten
 		if (mgmtInfo->dirtyFlags[pageSlot] == TRUE) {
 			BM_PageHandle *pageHandleToFlush = (BM_PageHandle*)malloc(sizeof(BM_PageHandle));
-			pageHandleToFlush->pageNum = pageSlot;
+			pageHandleToFlush->pageNum = mgmtInfo->pageNums[pageSlot];
 			if ((retVal = forcePage(bm, pageHandleToFlush)) != RC_OK)
 			{
 				if(pageHandleToFlush != NULL)
@@ -572,6 +578,7 @@ RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page,
 		mgmtInfo->pageNums[pageSlot] = page->pageNum;
 		mgmtInfo->dirtyFlags[pageSlot] = FALSE;
 		mgmtInfo->readCount += 1;
+		mgmtInfo->fixCount[pageSlot] = 0;
 	}
 	else
 	{
@@ -580,8 +587,8 @@ RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page,
 	}
 	
 	if(pageSlot != NO_PAGE)
-		mgmtInfo->fixCount[pageSlot]++;
-	
+		(mgmtInfo->fixCount[pageSlot])++;
+
 end:	
 	if(pageFileOpen == TRUE)
 		closePageFile(&fh);
