@@ -56,6 +56,9 @@ typedef struct BM_BufferPool {
   ReplacementStrategy strategy;
   LRUQUEUE * lruQueue;
   int fifoIndex;  // used for fifo
+  // 0 evict if 1 clear to 0 then advance
+  int *clockEvictionRef;
+  int clockIndex;
   void *mgmtData; // use this one to store the bookkeeping info your buffer 
                   // manager needs for a buffer pool
 } BM_BufferPool;
@@ -75,7 +78,7 @@ typedef struct BM_PageHandle {
 // page replacement
 int getPageSlotFIFO(BM_BufferPool *const bm);
 int getPageSlotLRU(BM_BufferPool *const bm);
-
+int getPageSlotCLOCK(BM_BufferPool *const bm);
 
 // Buffer Manager Interface Pool Handling
 RC initBufferPool(BM_BufferPool *const bm, const char *const pageFileName, 

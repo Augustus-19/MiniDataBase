@@ -11,6 +11,34 @@ NODE * createNewNode(int pageSlot) {
 	return temp;
 }
 
+int getPageSlotCLOCK(BM_BufferPool *const bm) {
+	int pageSlot = NO_PAGE;
+	BM_Pool_Mgmt_Info* mgmtInfo = NULL;
+	int curIndex = bm->clockIndex;
+	int startPositon = curIndex;
+	int totalFrames = bm->numPages;
+	mgmtInfo = bm->mgmtData;
+
+	while (mgmtInfo->fixCount[curIndex] != 0 && curIndex != startPositon && bm->clockEvictionRef[curIndex] != 0) {
+
+		if (++curIndex >= totalFrames) {
+			curIndex = 0;
+		}
+	}
+
+	if (curIndex != startPositon) {
+		if (mgmtInfo->fixCount[curIndex] == 0 && bm->clockEvictionRef[curIndex] == 0) {
+			pageSlot = curIndex;
+			if (++curIndex >= totalFrames) {
+				curIndex = 0;
+			}
+			bm->fifoIndex = curIndex;
+		}
+	}
+	else {
+		printf("No page available");
+	}
+}
 
 int getPageSlotFIFO(BM_BufferPool *const bm) {
 	int pageSlot = NO_PAGE;
@@ -20,6 +48,24 @@ int getPageSlotFIFO(BM_BufferPool *const bm) {
 	int totalFrames = bm->numPages;
 	mgmtInfo = bm->mgmtData;
 
+	// to check first element
+	if (curIndex == startPositon) {
+		if (mgmtInfo->fixCount[curIndex] == 0) {
+			pageSlot = curIndex;
+			if (++curIndex >= totalFrames) {
+				curIndex = 0;
+			}
+			bm->fifoIndex = curIndex;
+			return pageSlot;
+		}
+		else {
+			if (++curIndex >= totalFrames) {
+				curIndex = 0;
+			}
+		}
+	}
+
+	// if first frame is not free then we check all other frames
 	while (mgmtInfo->fixCount[curIndex] != 0 && curIndex != startPositon) {
 
 		if (++curIndex >= totalFrames) {
@@ -127,7 +173,7 @@ int getBufferPoolSlot(BM_BufferPool *const bm)
   		default:
   			break;
 	}
-	printf("return value %d",pageSlot);
+	
 	return pageSlot;
 }
 
@@ -172,11 +218,13 @@ RC initBufferPool(BM_BufferPool *const bm, const char *const pageFileName,
 	
 	pageFileOpen = TRUE;
 	
+	/*
 	if(fh.totalNumPages < numPages)
 	{
 		retVal = RC_INVALID_BUFFER_POOL_SIZE;
 		goto end;
 	}
+	*/
 		
 	bm->pageFile = malloc(sizeof(char) * (strlen(pageFileName) + 1));
 	bm->mgmtData = malloc(sizeof(BM_Pool_Mgmt_Info));
@@ -216,9 +264,15 @@ RC initBufferPool(BM_BufferPool *const bm, const char *const pageFileName,
 	if(bm->strategy == RS_FIFO){
 		bm->fifoIndex = 0;
 		bm->lruQueue = NULL;
+		bm->clockEvictionRef = NULL;
 	}
-
-	if (bm->strategy == RS_LRU) {
+	else if (bm->strategy == RS_CLOCK) {
+		// for clock replacement algo set initially to 0
+		bm->clockEvictionRef = (int*)malloc(sizeof(int)*numPages);
+		for (int i = 0; i < numPages; i++)
+			bm->clockEvictionRef[i] = 0;
+		bm->clockIndex = 0;
+	} else if (bm->strategy == RS_LRU) {
 
 		bm->lruQueue = (LRUQUEUE*)malloc(sizeof(LRUQUEUE));
 		bm->lruQueue->allotedHead = NULL;
@@ -227,6 +281,7 @@ RC initBufferPool(BM_BufferPool *const bm, const char *const pageFileName,
 			LRUEnqueue(bm, i);
 		}
 
+		bm->clockEvictionRef = NULL;
 	}
 // kiran end init fifo queue for page replacement
 			
