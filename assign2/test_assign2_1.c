@@ -78,7 +78,16 @@ createDummyPages(BM_BufferPool *bm, int num)
 {
   int i;
   BM_PageHandle *h = MAKE_PAGE_HANDLE();
-
+  SM_FileHandle fh;
+  
+  //Append empty blocks to file
+  CHECK(openPageFile ("testbuffer.bin", &fh));
+  for (i = 1; i < num; i++)
+  {
+  	CHECK(appendEmptyBlock(&fh));
+  }
+  CHECK(closePageFile (&fh));
+  
   CHECK(initBufferPool(bm, "testbuffer.bin", 3, RS_FIFO, NULL));
   
   for (i = 0; i < num; i++)
@@ -90,6 +99,7 @@ createDummyPages(BM_BufferPool *bm, int num)
     }
 
   CHECK(shutdownBufferPool(bm));
+  
 
   free(h);
 }

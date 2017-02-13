@@ -218,13 +218,13 @@ RC initBufferPool(BM_BufferPool *const bm, const char *const pageFileName,
 	
 	pageFileOpen = TRUE;
 	
-	/*
+	
 	if(fh.totalNumPages < numPages)
 	{
 		retVal = RC_INVALID_BUFFER_POOL_SIZE;
 		goto end;
 	}
-	*/
+	
 		
 	bm->pageFile = malloc(sizeof(char) * (strlen(pageFileName) + 1));
 	bm->mgmtData = malloc(sizeof(BM_Pool_Mgmt_Info));
@@ -265,8 +265,7 @@ RC initBufferPool(BM_BufferPool *const bm, const char *const pageFileName,
 		bm->fifoIndex = 0;
 		bm->lruQueue = NULL;
 		bm->clockEvictionRef = NULL;
-	}
-	else if (bm->strategy == RS_CLOCK) {
+	} else if (bm->strategy == RS_CLOCK) {
 		// for clock replacement algo set initially to 0
 		bm->clockEvictionRef = (int*)malloc(sizeof(int)*numPages);
 		for (int i = 0; i < numPages; i++)
@@ -288,7 +287,7 @@ RC initBufferPool(BM_BufferPool *const bm, const char *const pageFileName,
 	strcpy(bm->pageFile, pageFileName);
 end:	
 	if(pageFileOpen == TRUE)
-		retVal = closePageFile(&fh);
+		closePageFile(&fh);
 
 	return retVal;
 }
@@ -386,7 +385,7 @@ RC forceFlushPool(BM_BufferPool *const bm)
 	
 end:	
 	if(pageFileOpen == TRUE)
-		retVal = closePageFile(&fh);
+		closePageFile(&fh);
 	
 	return retVal;
 }
@@ -492,7 +491,7 @@ RC forcePage (BM_BufferPool *const bm, BM_PageHandle *const page)
 
 end:	
 	if(pageFileOpen == TRUE)
-		retVal = closePageFile(&fh);
+		closePageFile(&fh);
 	return retVal;
 }
 
@@ -557,15 +556,15 @@ RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page,
 	else
 	{
 		retVal = RC_ERROR_PIN_PAGE;
-		RC_message = "Error no page in buffer pool can be replaced";
+		//RC_message = "Error no page in buffer pool can be replaced";
 	}
 	
-	if(pageSlot != -1)
+	if(pageSlot != NO_PAGE)
 		mgmtInfo->fixCount[pageSlot]++;
 	
 end:	
 	if(pageFileOpen == TRUE)
-		retVal = closePageFile(&fh);
+		closePageFile(&fh);
 	
 	return retVal;
 }
