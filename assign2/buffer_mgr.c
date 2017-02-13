@@ -19,27 +19,47 @@ int getPageSlotCLOCK(BM_BufferPool *const bm) {
 	int totalFrames = bm->numPages;
 	mgmtInfo = bm->mgmtData;
 
-	while (mgmtInfo->fixCount[curIndex] != 0 && curIndex != startPositon && bm->clockEvictionRef[curIndex] != 0) {
-
+	if (mgmtInfo->fixCount[curIndex] == 0 && bm->clockEvictionRef[curIndex] == 0) {
+		pageSlot = curIndex;
+		bm->clockEvictionRef[curIndex] = 1;  // once page selected mark it as referenced
 		if (++curIndex >= totalFrames) {
 			curIndex = 0;
 		}
+		bm->fifoIndex = curIndex;
+		return pageSlot;
 	}
+	else {
+		++curIndex;
+		if (curIndex >= totalFrames) {
+			curIndex = 0;
+		}
 
-	if (curIndex != startPositon) {
-		if (mgmtInfo->fixCount[curIndex] == 0 && bm->clockEvictionRef[curIndex] == 0) {
-			pageSlot = curIndex;
+		while (mgmtInfo->fixCount[curIndex] != 0 && curIndex != startPositon && bm->clockEvictionRef[curIndex] != 0) {
+			if (bm->clockEvictionRef[curIndex] == 1) {
+				bm->clockEvictionRef[curIndex] = 0;
+			}
+			
 			if (++curIndex >= totalFrames) {
 				curIndex = 0;
 			}
-			bm->fifoIndex = curIndex;
+		}
+
+		if (curIndex != startPositon) {
+			if (mgmtInfo->fixCount[curIndex] == 0 && bm->clockEvictionRef[curIndex] == 0) {
+				pageSlot = curIndex;
+				if (++curIndex >= totalFrames) {
+					curIndex = 0;
+				}
+				bm->fifoIndex = curIndex;
+			}
+		}
+		else {
+			printf("No page available");
 		}
 	}
-	else {
-		printf("No page available");
-	}
-}
 
+	return pageSlot;
+}
 int getPageSlotFIFO(BM_BufferPool *const bm) {
 	int pageSlot = NO_PAGE;
 	BM_Pool_Mgmt_Info* mgmtInfo = NULL;
@@ -49,42 +69,41 @@ int getPageSlotFIFO(BM_BufferPool *const bm) {
 	mgmtInfo = bm->mgmtData;
 
 	// to check first element
-	if (curIndex == startPositon) {
-		if (mgmtInfo->fixCount[curIndex] == 0) {
-			pageSlot = curIndex;
-			if (++curIndex >= totalFrames) {
-				curIndex = 0;
-			}
-			bm->fifoIndex = curIndex;
-			return pageSlot;
-		}
-		else {
-			if (++curIndex >= totalFrames) {
-				curIndex = 0;
-			}
-		}
-	}
-
-	// if first frame is not free then we check all other frames
-	while (mgmtInfo->fixCount[curIndex] != 0 && curIndex != startPositon) {
-
+	if (mgmtInfo->fixCount[curIndex] == 0) {
+		pageSlot = curIndex;
 		if (++curIndex >= totalFrames) {
 			curIndex = 0;
 		}
+		bm->fifoIndex = curIndex;
+		return pageSlot;
 	}
+	else {
+		++curIndex;
+		if (curIndex >= totalFrames) {
+			curIndex = 0;
+		}
 
-	if (curIndex != startPositon) {
-		if (mgmtInfo->fixCount[curIndex] == 0) {
-			pageSlot = curIndex;
+		// if first frame is not free then we check all other frames
+		while (mgmtInfo->fixCount[curIndex] != 0 && curIndex != startPositon) {
 			if (++curIndex >= totalFrames) {
 				curIndex = 0;
 			}
-			bm->fifoIndex = curIndex;
+		}
+
+		if (curIndex != startPositon) {
+			if (mgmtInfo->fixCount[curIndex] == 0) {
+				pageSlot = curIndex;
+				if (++curIndex >= totalFrames) {
+					curIndex = 0;
+				}
+				bm->fifoIndex = curIndex;
+			}
+		}
+		else {
+			printf("No page available");
 		}
 	}
-	else {
-		printf("No page available");
-	}
+	
 	return pageSlot;
 }
 
@@ -165,6 +184,7 @@ int getBufferPoolSlot(BM_BufferPool *const bm)
 			pageSlot = getPageSlotLRU(bm);
   			break;
   		case RS_CLOCK:
+			pageSlot = getPageSlotCLOCK(bm);
   			break;
   		case RS_LFU:
   			break;
