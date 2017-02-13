@@ -262,7 +262,7 @@ RC shutdownBufferPool(BM_BufferPool *const bm)
 
 	}
 
-	if (bm->strategy == RS_LRU && bm->lruQueue != NULL) {
+	if (bm->strategy == RS_LRU && bm != NULL && bm->lruQueue != NULL) {
 		NODE* ittr = bm->lruQueue->allotedHead;
 		NODE* tempIttr = NULL;
 		while (ittr != NULL) {
@@ -277,15 +277,15 @@ RC shutdownBufferPool(BM_BufferPool *const bm)
 
 	if(mgmtInfo->poolAddr != NULL)
 		free(mgmtInfo->poolAddr);
-	if(mgmtInfo->poolAddr != NULL)
+	if(mgmtInfo->pageNums != NULL)
 		free(mgmtInfo->pageNums);
-	if(mgmtInfo->poolAddr != NULL)
+	if(mgmtInfo->dirtyFlags != NULL)
 		free(mgmtInfo->dirtyFlags);
-	if(mgmtInfo->poolAddr != NULL)
+	if(mgmtInfo->fixCount != NULL)
 		free(mgmtInfo->fixCount);
-	if(mgmtInfo->poolAddr != NULL)
+	if(bm->mgmtData != NULL)
 		free(bm->mgmtData);
-	if(mgmtInfo->poolAddr != NULL)
+	if(bm->pageFile != NULL)
 		free(bm->pageFile);
 	
 end:	
