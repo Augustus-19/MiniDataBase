@@ -36,6 +36,9 @@ typedef int RC;
 /* Insufficient memory for buffer pool */
 #define RC_INSUFFICIENT_MEMORY 11
 
+/* Erron pinning page to buffer pool */
+#define RC_ERROR_PIN_PAGE 12
+
 #define RC_RM_COMPARE_VALUE_OF_DIFFERENT_DATATYPE 200
 #define RC_RM_EXPR_RESULT_IS_NOT_BOOLEAN 201
 #define RC_RM_BOOLEAN_EXPR_ARG_IS_NOT_BOOLEAN 202

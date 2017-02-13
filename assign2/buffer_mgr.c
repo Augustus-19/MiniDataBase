@@ -316,10 +316,8 @@ RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page,
 	{
 		page->pageNum = pageNum;
 		page->data = (char*)&(mgmtInfo->poolAddr[pageSlot]);
-		goto end;
 	}
-	
-	if((pageSlot = getBufferPoolSlot(bm)) != NO_PAGE)
+	else if((pageSlot = getBufferPoolSlot(bm)) != NO_PAGE)
 	{
 		if((retVal = openPageFile(bm->pageFile, &fh)) != RC_OK)
 		{
@@ -341,12 +339,16 @@ RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page,
 		mgmtInfo->dirtyFlags[pageSlot] = FALSE;
 		mgmtInfo->readCount += 1;
 	}
-
+	else
+	{
+		retVal = RC_ERROR_PIN_PAGE;
+		RC_message = "Error no page in buffer pool can be replaced";
+	}
+	
 	if(pageSlot != -1)
 		mgmtInfo->fixCount[pageSlot]++;
+	
 end:	
-	
-	
 	if(pageFileOpen == TRUE)
 		retVal = closePageFile(&fh);
 	
