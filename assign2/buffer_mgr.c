@@ -4,17 +4,119 @@
 #include "storage_mgr.h"
 #include "string.h"
 
+NODE * createNewNode(int pageSlot) {
+	NODE * temp = (NODE*)malloc(sizeof(NODE));
+	temp->NEXT = NULL;
+	temp->frameNumber = pageSlot;
+	return temp;
+}
+
+
+int getPageSlotFIFO(BM_BufferPool *const bm) {
+	int pageSlot = NO_PAGE;
+	BM_Pool_Mgmt_Info* mgmtInfo = NULL;
+	int curIndex = bm->fifoIndex;
+	int startPositon = curIndex;
+	int totalFrames = bm->numPages;
+	mgmtInfo = bm->mgmtData;
+
+	while (mgmtInfo->fixCount[curIndex] != 0 && curIndex != startPositon) {
+
+		if (++curIndex >= totalFrames) {
+			curIndex = 0;
+		}
+	}
+
+	if (curIndex != startPositon) {
+		if (mgmtInfo->fixCount[curIndex] == 0) {
+			pageSlot = curIndex;
+			if (++curIndex >= totalFrames) {
+				curIndex = 0;
+			}
+			bm->fifoIndex = curIndex;
+		}
+	}
+	else {
+		printf("No page available");
+	}
+	return pageSlot;
+}
+
+
+// it will keep adding file to end of the queue
+void LRUEnqueue(BM_BufferPool *const bm, int pageSlot) {
+	LRUQUEUE* queue = bm->lruQueue;
+	BM_Pool_Mgmt_Info* mgmtInfo = NULL;
+	mgmtInfo = bm->mgmtData;
+	
+	// createNewNode will return new node with frameNumber filled with pageSlot
+	NODE * temp = createNewNode(pageSlot);
+
+	// queue is empty
+	if (queue->allotedTail == NULL) {
+		queue->allotedHead = queue->allotedTail = temp;
+		return;
+	}
+
+	// else we add the new node to rear of the queue
+	queue->allotedTail->NEXT = temp;
+	queue->allotedTail = temp;
+
+}
+
+int getPageSlotLRU(BM_BufferPool *const bm){
+
+	int pageSlot = NO_PAGE;
+	LRUQUEUE* queue = bm->lruQueue;
+	BM_Pool_Mgmt_Info* mgmtInfo = NULL;
+	mgmtInfo = bm->mgmtData;
+
+	NODE * tempHead = queue->allotedHead;
+
+	// if we are choosing first element in queue
+	if (mgmtInfo->fixCount[tempHead->frameNumber] == 0) {
+		// move first element in queue to end
+		queue->allotedHead = queue->allotedHead->NEXT;
+		queue->allotedTail->NEXT = tempHead;
+		queue->allotedTail = tempHead;
+		tempHead->NEXT = NULL;
+		pageSlot = tempHead->frameNumber;
+		return pageSlot;
+	}
+
+	// search for the page whose count is zero
+	while (tempHead->NEXT != NULL && mgmtInfo->fixCount[tempHead->frameNumber] > 0) {
+		tempHead = tempHead->NEXT;
+	}
+
+	if (tempHead->NEXT == NULL) {
+		pageSlot = NO_PAGE;
+		return pageSlot;
+	}
+
+	if (mgmtInfo->fixCount[tempHead->NEXT->frameNumber] == 0) {
+		pageSlot = tempHead->NEXT->frameNumber;
+		queue->allotedTail->NEXT = tempHead->NEXT;
+		queue->allotedTail = tempHead->NEXT;
+		tempHead->NEXT = tempHead->NEXT->NEXT;
+		return pageSlot;
+	}
+
+}
+
 int getBufferPoolSlot(BM_BufferPool *const bm)
 {
 	int pageSlot = NO_PAGE;
 	
-	//if()
+
 	
 	switch(bm->strategy) 
 	{
 		case RS_FIFO:
+			pageSlot = getPageSlotFIFO(bm);
 			break; 
   		case RS_LRU:
+			pageSlot = getPageSlotLRU(bm);
   			break;
   		case RS_CLOCK:
   			break;
@@ -25,7 +127,7 @@ int getBufferPoolSlot(BM_BufferPool *const bm)
   		default:
   			break;
 	}
-	
+	printf("return value %d",pageSlot);
 	return pageSlot;
 }
 
@@ -85,7 +187,8 @@ RC initBufferPool(BM_BufferPool *const bm, const char *const pageFileName,
 	if(mgmtInfo->poolAddr == NULL)
 	{
 		retVal = RC_INSUFFICIENT_MEMORY;
-		free(bm->mgmtData);
+		if(bm->mgmtData != NULL)
+			free(bm->mgmtData);
 		goto end;
 	}
 	
@@ -108,6 +211,25 @@ RC initBufferPool(BM_BufferPool *const bm, const char *const pageFileName,
 	
 	bm->numPages = numPages;
 	bm->strategy = strategy;
+
+// kiran init fifo queue for page replacement
+	if(bm->strategy == RS_FIFO){
+		bm->fifoIndex = 0;
+		bm->lruQueue = NULL;
+	}
+
+	if (bm->strategy == RS_LRU) {
+
+		bm->lruQueue = (LRUQUEUE*)malloc(sizeof(LRUQUEUE));
+		bm->lruQueue->allotedHead = NULL;
+		bm->lruQueue->allotedTail = NULL;
+		for (int i = 0; i < bm->numPages; i++) {
+			LRUEnqueue(bm, i);
+		}
+
+	}
+// kiran end init fifo queue for page replacement
+			
 	strcpy(bm->pageFile, pageFileName);
 end:	
 	if(pageFileOpen == TRUE)
@@ -134,12 +256,37 @@ RC shutdownBufferPool(BM_BufferPool *const bm)
 		goto end;
 	}
 	
-	free(mgmtInfo->poolAddr);
-	free(mgmtInfo->pageNums);
-	free(mgmtInfo->dirtyFlags);
-	free(mgmtInfo->fixCount);
-	free(bm->mgmtData);
-	free(bm->pageFile);
+//kiran Free fifo related memory
+	if(bm->strategy == RS_FIFO){
+
+
+	}
+
+	if (bm->strategy == RS_LRU && bm->lruQueue != NULL) {
+		NODE* ittr = bm->lruQueue->allotedHead;
+		NODE* tempIttr = NULL;
+		while (ittr != NULL) {
+			tempIttr = ittr;
+			ittr = ittr->NEXT;
+			if(tempIttr != NULL)
+				free(tempIttr);
+		}
+		free(bm->lruQueue);
+	}
+//kiran end Free fifo related memory
+
+	if(mgmtInfo->poolAddr != NULL)
+		free(mgmtInfo->poolAddr);
+	if(mgmtInfo->poolAddr != NULL)
+		free(mgmtInfo->pageNums);
+	if(mgmtInfo->poolAddr != NULL)
+		free(mgmtInfo->dirtyFlags);
+	if(mgmtInfo->poolAddr != NULL)
+		free(mgmtInfo->fixCount);
+	if(mgmtInfo->poolAddr != NULL)
+		free(bm->mgmtData);
+	if(mgmtInfo->poolAddr != NULL)
+		free(bm->pageFile);
 	
 end:	
 	return retVal;
@@ -319,6 +466,19 @@ RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page,
 	}
 	else if((pageSlot = getBufferPoolSlot(bm)) != NO_PAGE)
 	{
+		// if the selected page is dirty then make sure its written back before data is overwritten
+		if (mgmtInfo->dirtyFlags[pageSlot] == TRUE) {
+			BM_PageHandle *pageHandleToFlush = (BM_PageHandle*)malloc(sizeof(BM_PageHandle));
+			pageHandleToFlush->pageNum = pageSlot;
+			if ((retVal = forcePage(bm, pageHandleToFlush)) != RC_OK)
+			{
+				if(pageHandleToFlush != NULL)
+					free(pageHandleToFlush);
+				goto end;
+			}
+			if(pageHandleToFlush != NULL)
+				free(pageHandleToFlush);
+		}
 		if((retVal = openPageFile(bm->pageFile, &fh)) != RC_OK)
 		{
 			goto end;
