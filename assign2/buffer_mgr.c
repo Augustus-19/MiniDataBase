@@ -342,8 +342,10 @@ RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page,
 		mgmtInfo->readCount += 1;
 	}
 
+	if(pageSlot != -1)
+		mgmtInfo->fixCount[pageSlot]++;
 end:	
-	mgmtInfo->fixCount[pageSlot]++;
+	
 	
 	if(pageFileOpen == TRUE)
 		retVal = closePageFile(&fh);
