@@ -48,6 +48,7 @@ typedef struct _BM_Pool_Mgmt_Info {
   int readCount;
   int writeCount;
   void * stratData;
+
 } BM_Pool_Mgmt_Info;
 
 typedef struct BM_BufferPool {
@@ -79,6 +80,7 @@ typedef struct BM_PageHandle {
 int getPageSlotFIFO(BM_BufferPool *const bm);
 int getPageSlotLRU(BM_BufferPool *const bm);
 int getPageSlotCLOCK(BM_BufferPool *const bm);
+void markPageFrameMarked(BM_BufferPool *const bm, int pageFrame);
 
 // Buffer Manager Interface Pool Handling
 RC initBufferPool(BM_BufferPool *const bm, const char *const pageFileName, 

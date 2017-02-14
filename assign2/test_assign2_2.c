@@ -108,7 +108,7 @@ main (void)
   testReadPage();
   testFIFO();
   testLRU();
-  /* testError(); */
+  testError();
 }
 
 #define NUM_DUMMY_PAGES 100
@@ -165,7 +165,7 @@ createDummyPages(BM_BufferPool *bm, int num)
 void 
 readAndCheckDummyPage(BM_BufferPool *bm, int pageNum)
 {
-  //int i;
+  int i;
   BM_PageHandle *h = MAKE_PAGE_HANDLE();
   char *expected = malloc(sizeof(char) * 512);
 
@@ -208,6 +208,11 @@ checkDummyPages(BM_BufferPool *bm, int num)
   int i;
   BM_PageHandle *h = MAKE_PAGE_HANDLE();
   char *expected = malloc(sizeof(char) * 512);
+  SM_FileHandle fh;
+
+  //CHECK(openPageFile ("testbuffer.bin", &fh));
+  //CHECK(ensureCapacity (num, &fh));
+  //CHECK(closePageFile (&fh));
 
   CHECK(initBufferPool(bm, "testbuffer.bin", 3, RS_FIFO, NULL));
 
@@ -318,7 +323,8 @@ testFIFO ()
   // check number of write IOs
   ASSERT_EQUALS_INT(3, getNumWriteIO(bm), "check number of write I/Os");
   ASSERT_EQUALS_INT(8, getNumReadIO(bm), "check number of read I/Os");
-
+  h->pageNum = 4;
+  unpinPage(bm, h);
   CHECK(shutdownBufferPool(bm));
   CHECK(destroyPageFile("testbuffer.bin"));
 
@@ -354,7 +360,7 @@ testLRU (void)
   };
   const int orderRequests[] = {3,4,0,2,1};
   const int numLRUOrderChange = 5;
-  //const int numChangeRequests = 3;
+  const int numChangeRequests = 3;
 
   int i;
   int snapshot = 0;
@@ -371,7 +377,8 @@ testLRU (void)
     {
       pinPage(bm, h, i);
       unpinPage(bm, h);
-      ASSERT_EQUALS_POOL(poolContents[snapshot++], bm, "check pool content reading in pages");
+      ASSERT_EQUALS_POOL(poolContents[snapshot], bm, "check pool content reading in pages");
+	  snapshot++;
     }
 
   // read pages to change LRU order
@@ -379,7 +386,8 @@ testLRU (void)
     {
       pinPage(bm, h, orderRequests[i]);
       unpinPage(bm, h);
-      ASSERT_EQUALS_POOL(poolContents[snapshot++], bm, "check pool content using pages");
+      ASSERT_EQUALS_POOL(poolContents[snapshot], bm, "check pool content using pages");
+	  snapshot++;
     }
 
   // replace pages and check that it happens in LRU order
@@ -387,12 +395,13 @@ testLRU (void)
     {
       pinPage(bm, h, 5 + i);
       unpinPage(bm, h);
-      ASSERT_EQUALS_POOL(poolContents[snapshot++], bm, "check pool content using pages");
+      ASSERT_EQUALS_POOL(poolContents[snapshot], bm, "check pool content using pages");
+	  snapshot++;
     }
 
   // check number of write IOs
   ASSERT_EQUALS_INT(0, getNumWriteIO(bm), "check number of write I/Os");
-  ASSERT_EQUALS_INT(8, getNumReadIO(bm), "check number of read I/Os");
+  ASSERT_EQUALS_INT(10, getNumReadIO(bm), "check number of read I/Os");
 
 
   CHECK(shutdownBufferPool(bm));
@@ -407,7 +416,7 @@ testLRU (void)
 void
 testError (void)
 {
-  //int i;
+  int i;
   BM_BufferPool *bm = MAKE_POOL();
   BM_PageHandle *h = MAKE_PAGE_HANDLE();
   testName = "Testing LRU page replacement";

@@ -19,6 +19,7 @@ int getPageSlotCLOCK(BM_BufferPool *const bm) {
 	int totalFrames = bm->numPages;
 	mgmtInfo = bm->mgmtData;
 
+
 	if (mgmtInfo->fixCount[curIndex] == 0 && bm->clockEvictionRef[curIndex] == 0) {
 		pageSlot = curIndex;
 		bm->clockEvictionRef[curIndex] = 1;  // once page selected mark it as referenced
@@ -60,6 +61,7 @@ int getPageSlotCLOCK(BM_BufferPool *const bm) {
 
 	return pageSlot;
 }
+
 int getPageSlotFIFO(BM_BufferPool *const bm) {
 	int pageSlot = NO_PAGE;
 	BM_Pool_Mgmt_Info* mgmtInfo = NULL;
@@ -68,7 +70,6 @@ int getPageSlotFIFO(BM_BufferPool *const bm) {
 	int totalFrames = bm->numPages;
 	mgmtInfo = bm->mgmtData;
 
-	// to check first element
 	if (mgmtInfo->fixCount[curIndex] == 0) {
 		pageSlot = curIndex;
 		if (++curIndex >= totalFrames) {
@@ -129,6 +130,45 @@ void LRUEnqueue(BM_BufferPool *const bm, int pageSlot) {
 
 }
 
+void markPageFrameMarked(BM_BufferPool *const bm, int pageFrame) {
+
+	LRUQUEUE* queue = bm->lruQueue;
+	BM_Pool_Mgmt_Info* mgmtInfo = NULL;
+	mgmtInfo = bm->mgmtData;
+
+	NODE * tempHead = queue->allotedHead;
+
+	if (tempHead->frameNumber == pageFrame) {
+		// move first element in queue to end
+		queue->allotedHead = queue->allotedHead->NEXT;
+		queue->allotedTail->NEXT = tempHead;
+		queue->allotedTail = tempHead;
+		tempHead->NEXT = NULL;
+		return;
+	}
+
+	while ((tempHead->NEXT != NULL) && (tempHead->NEXT->frameNumber != pageFrame)) {
+		tempHead = tempHead->NEXT;
+	}
+
+	if (tempHead->NEXT == NULL) {
+		printf("Should Not enter here");
+		return;
+	}
+
+	if (tempHead->NEXT->frameNumber == pageFrame) {
+		queue->allotedTail->NEXT = tempHead->NEXT;
+		queue->allotedTail = tempHead->NEXT;
+		tempHead->NEXT = tempHead->NEXT->NEXT;
+		queue->allotedTail->NEXT = NULL;
+	}
+	else {
+		
+	}
+
+	return;
+}
+
 int getPageSlotLRU(BM_BufferPool *const bm){
 
 	int pageSlot = NO_PAGE;
@@ -178,8 +218,6 @@ int getPageSlotLRU(BM_BufferPool *const bm){
 int getBufferPoolSlot(BM_BufferPool *const bm)
 {
 	int pageSlot = NO_PAGE;
-	
-
 	
 	switch(bm->strategy) 
 	{
@@ -244,12 +282,12 @@ RC initBufferPool(BM_BufferPool *const bm, const char *const pageFileName,
 	
 	pageFileOpen = TRUE;
 	
-	
+	/*
 	if(fh.totalNumPages < numPages)
 	{
 		retVal = RC_INVALID_BUFFER_POOL_SIZE;
 		goto end;
-	}
+	}*/
 	
 		
 	bm->pageFile = malloc(sizeof(char) * (strlen(pageFileName) + 1));
@@ -287,11 +325,12 @@ RC initBufferPool(BM_BufferPool *const bm, const char *const pageFileName,
 	bm->strategy = strategy;
 
 // kiran init fifo queue for page replacement
-	if(bm->strategy == RS_FIFO){
+	if (bm->strategy == RS_FIFO) {
 		bm->fifoIndex = 0;
 		bm->lruQueue = NULL;
 		bm->clockEvictionRef = NULL;
-	} else if (bm->strategy == RS_CLOCK) {
+	}
+	else if (bm->strategy == RS_CLOCK) {
 		// for clock replacement algo set initially to 0
 		bm->clockEvictionRef = (int*)malloc(sizeof(int)*numPages);
 		for (int i = 0; i < numPages; i++)
@@ -339,7 +378,6 @@ RC shutdownBufferPool(BM_BufferPool *const bm)
 //kiran Free fifo related memory
 	if(bm->strategy == RS_FIFO){
 
-
 	}
 
 	if (bm->strategy == RS_LRU && bm != NULL && bm->lruQueue != NULL) {
@@ -355,19 +393,36 @@ RC shutdownBufferPool(BM_BufferPool *const bm)
 	}
 //kiran end Free fifo related memory
 
-	if(mgmtInfo->poolAddr != NULL)
+	if (mgmtInfo->poolAddr != NULL) {
 		free(mgmtInfo->poolAddr);
-	if(mgmtInfo->pageNums != NULL)
+		mgmtInfo->poolAddr = NULL;
+	}
+		
+	if (mgmtInfo->pageNums != NULL) {
 		free(mgmtInfo->pageNums);
-	if(mgmtInfo->dirtyFlags != NULL)
+		mgmtInfo->pageNums = NULL;
+	}
+		
+	if (mgmtInfo->dirtyFlags != NULL) {
 		free(mgmtInfo->dirtyFlags);
-	if(mgmtInfo->fixCount != NULL)
+		mgmtInfo->dirtyFlags = NULL;
+	}
+		
+	if (mgmtInfo->fixCount != NULL) {
 		free(mgmtInfo->fixCount);
-	if(bm->mgmtData != NULL)
+		mgmtInfo->fixCount = NULL;
+	}
+		
+	if (bm->mgmtData != NULL) {
 		free(bm->mgmtData);
-	if(bm->pageFile != NULL)
+		bm->mgmtData = NULL;
+	}
+		
+	if (bm->pageFile != NULL) {
 		free(bm->pageFile);
-	
+		bm->pageFile = NULL;
+	}
+		
 end:	
 	return retVal;
 }
@@ -380,7 +435,7 @@ RC forceFlushPool(BM_BufferPool *const bm)
   	SM_PageHandle ph;
   	bool pageFileOpen = FALSE;
 	
-	if(bm == NULL)
+	if(bm == NULL || bm->pageFile == NULL || bm->mgmtData == NULL)
 	{
 		retVal = RC_NULL_PARAM;
 		goto end;	
@@ -390,6 +445,7 @@ RC forceFlushPool(BM_BufferPool *const bm)
 	
 	if((retVal = openPageFile(bm->pageFile, &fh)) != RC_OK)
 	{
+		retVal = RC_CANNOT_FLUSH_BUFFER_POOL;
 		goto end;
 	}
 	
@@ -423,7 +479,7 @@ RC markDirty (BM_BufferPool *const bm, BM_PageHandle *const page)
 	BM_Pool_Mgmt_Info* mgmtInfo = NULL;
 	int pageSlot = NO_PAGE;
 	
-	if(bm == NULL || page == NULL)
+	if(bm == NULL || page == NULL || bm->mgmtData == NULL)
 	{
 		retVal = RC_NULL_PARAM;
 		goto end;	
@@ -434,6 +490,10 @@ RC markDirty (BM_BufferPool *const bm, BM_PageHandle *const page)
 	if ((pageSlot = findPageinPool(bm, page->pageNum)) != NO_PAGE)
 	{
 		mgmtInfo->dirtyFlags[pageSlot] = TRUE;
+	}
+	else
+	{
+		retVal = RC_ERROR_MARKING_DIRTY;
 	}
 	
 end:	
@@ -446,7 +506,7 @@ RC unpinPage (BM_BufferPool *const bm, BM_PageHandle *const page)
 	BM_Pool_Mgmt_Info* mgmtInfo = NULL;
 	int pageSlot = NO_PAGE;
 	
-	if(bm == NULL || page == NULL)
+	if(bm == NULL || page == NULL || bm->mgmtData == NULL)
 	{
 		retVal = RC_NULL_PARAM;
 		goto end;	
@@ -468,7 +528,13 @@ RC unpinPage (BM_BufferPool *const bm, BM_PageHandle *const page)
 		mgmtInfo->dirtyFlags[pageSlot] = FALSE;
 		
 		*/
+
+		//if(mgmtInfo->fixCount[pageSlot] > 0)
 			(mgmtInfo->fixCount[pageSlot])--;
+	}
+	else
+	{
+		retVal = RC_ERROR_UNPIN_PAGE;
 	}
 	
 end:	
@@ -484,7 +550,7 @@ RC forcePage (BM_BufferPool *const bm, BM_PageHandle *const page)
   	bool pageFileOpen = FALSE;
 	int pageSlot = NO_PAGE;
 	
-	if(bm == NULL || page == NULL)
+	if(bm == NULL || page == NULL || bm->mgmtData == NULL)
 	{
 		retVal = RC_NULL_PARAM;
 		goto end;	
@@ -513,6 +579,10 @@ RC forcePage (BM_BufferPool *const bm, BM_PageHandle *const page)
 			mgmtInfo->dirtyFlags[pageSlot] = FALSE;
 		}
 	}
+	else
+	{
+		retVal = RC_ERROR_FORCING_PAGE;
+	}
 
 
 end:	
@@ -520,6 +590,8 @@ end:
 		closePageFile(&fh);
 	return retVal;
 }
+
+
 
 RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page, 
 	    const PageNumber pageNum)
@@ -531,21 +603,27 @@ RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page,
 	BM_Pool_Mgmt_Info* mgmtInfo = NULL;
 	int pageSlot = NO_PAGE;
 	
-	if(bm == NULL || page == NULL)
+	if(bm == NULL || page == NULL || pageNum < 0 || bm->mgmtData == NULL)
 	{
 		retVal = RC_NULL_PARAM;
 		goto end;	
 	}
 	
 	mgmtInfo = bm->mgmtData;
+
+	
 	
 	if ((pageSlot = findPageinPool(bm, pageNum)) != NO_PAGE)
 	{
 		page->pageNum = pageNum;
 		page->data = (char*)&(mgmtInfo->poolAddr[pageSlot]);
+		if (bm->strategy == RS_LRU && bm != NULL && bm->lruQueue != NULL) {
+			markPageFrameMarked(bm, pageSlot);
+		}
 	}
 	else if((pageSlot = getBufferPoolSlot(bm)) != NO_PAGE)
 	{
+		//printf("pageSlot %d pageNum- %d\n", pageSlot, pageNum);
 		// if the selected page is dirty then make sure its written back before data is overwritten
 		if (mgmtInfo->dirtyFlags[pageSlot] == TRUE) {
 			BM_PageHandle *pageHandleToFlush = (BM_PageHandle*)malloc(sizeof(BM_PageHandle));
@@ -559,12 +637,18 @@ RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page,
 			if(pageHandleToFlush != NULL)
 				free(pageHandleToFlush);
 		}
+
 		if((retVal = openPageFile(bm->pageFile, &fh)) != RC_OK)
 		{
 			goto end;
 		}
 	
 		pageFileOpen = TRUE;
+
+		/*if ((retVal = ensureCapacity(pageNum + 1, &fh)) != RC_OK)
+		{
+			goto end;
+		}*/
 		
 		ph = (SM_PageHandle)&(mgmtInfo->poolAddr[pageSlot]);
 		
@@ -586,7 +670,7 @@ RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page,
 		//RC_message = "Error no page in buffer pool can be replaced";
 	}
 	
-	if(pageSlot != NO_PAGE)
+	if(pageSlot != NO_PAGE )
 		(mgmtInfo->fixCount[pageSlot])++;
 
 end:	
@@ -602,7 +686,7 @@ PageNumber *getFrameContents (BM_BufferPool *const bm)
 	PageNumber* retVal = NULL;
 	BM_Pool_Mgmt_Info* mgmtInfo = NULL;
 	
-	if(bm == NULL)
+	if(bm == NULL || bm->mgmtData == NULL)
 	{
 		goto end;	
 	}
@@ -619,7 +703,7 @@ bool *getDirtyFlags (BM_BufferPool *const bm)
 	bool* retVal = NULL;
 	BM_Pool_Mgmt_Info* mgmtInfo = NULL;
 	
-	if(bm == NULL)
+	if(bm == NULL || bm->mgmtData == NULL)
 	{
 		goto end;	
 	}
@@ -636,7 +720,7 @@ int *getFixCounts (BM_BufferPool *const bm)
 	int* retVal = NULL;
 	BM_Pool_Mgmt_Info* mgmtInfo = NULL;
 	
-	if(bm == NULL)
+	if(bm == NULL || bm->mgmtData == NULL)
 	{
 		goto end;	
 	}
@@ -653,7 +737,7 @@ int getNumReadIO (BM_BufferPool *const bm)
 	int retVal = 0;
 	BM_Pool_Mgmt_Info* mgmtInfo = NULL;
 	
-	if(bm == NULL)
+	if(bm == NULL || bm->mgmtData == NULL)
 	{
 		goto end;	
 	}
@@ -670,7 +754,7 @@ int getNumWriteIO (BM_BufferPool *const bm)
 	int retVal = 0;
 	BM_Pool_Mgmt_Info* mgmtInfo = NULL;
 	
-	if(bm == NULL)
+	if(bm == NULL || bm->mgmtData == NULL)
 	{
 		goto end;	
 	}

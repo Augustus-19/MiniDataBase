@@ -14,30 +14,40 @@ typedef int RC;
 #define RC_FILE_HANDLE_NOT_INIT 2
 #define RC_WRITE_FAILED 3
 #define RC_READ_NON_EXISTING_PAGE 4
+#define RC_CANNOT_FLUSH_BUFFER_POOL 5
 
 /* requested page is out of bound */
-#define RC_PAGE_OUTOFBOUND 5
+#define RC_PAGE_OUTOFBOUND 6
 
 /* parameters provided have null value */
-#define RC_NULL_PARAM 6
+#define RC_NULL_PARAM 7
 
 /* file deletion failed */
-#define RC_DELETE_FAILED 7
+#define RC_DELETE_FAILED 8
 
 /* file cannot be extended */
-#define RC_FILE_NOT_EXTENSIBLE 8
+#define RC_FILE_NOT_EXTENSIBLE 9
 
 /* file seek or read  */
-#define RC_FILE_SEEK_OR_IO_FAIL 9
+#define RC_FILE_SEEK_OR_IO_FAIL 10
 
 /* Invalid buffer pool size  */
-#define RC_INVALID_BUFFER_POOL_SIZE 10
+#define RC_INVALID_BUFFER_POOL_SIZE 11
 
 /* Insufficient memory for buffer pool */
-#define RC_INSUFFICIENT_MEMORY 11
+#define RC_INSUFFICIENT_MEMORY 12
 
-/* Erron pinning page to buffer pool */
-#define RC_ERROR_PIN_PAGE 12
+/* Error pinning page to buffer pool */
+#define RC_ERROR_PIN_PAGE 13
+
+/* Error un-pinning page from buffer pool */
+#define RC_ERROR_UNPIN_PAGE 14
+
+/* Error forcing page to file */
+#define RC_ERROR_FORCING_PAGE 15
+
+/* Error marking page dirty */
+#define RC_ERROR_MARKING_DIRTY 15
 
 #define RC_RM_COMPARE_VALUE_OF_DIFFERENT_DATATYPE 200
 #define RC_RM_EXPR_RESULT_IS_NOT_BOOLEAN 201

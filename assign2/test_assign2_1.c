@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define TESTFileName "testbuffer.bin"
+
 // var to store the current test's name
 char *testName;
 
@@ -39,6 +41,8 @@ static void testFIFO (void);
 static void testLRU (void);
 
 // main method
+
+
 int 
 main (void) 
 {
@@ -50,6 +54,8 @@ main (void)
   testFIFO();
   testLRU();
 }
+
+
 
 // create n pages with content "Page X" and read them back to check whether the content is right
 void
@@ -72,6 +78,34 @@ testCreatingAndReadingDummyPages (void)
   TEST_DONE();
 }
 
+//void
+testCreatingAndReadingDummyPages_kiran(void)
+{
+	BM_BufferPool *bm = MAKE_POOL();
+	SM_PageHandle ph;
+	SM_FileHandle fh;
+
+	ph = (SM_PageHandle)malloc(PAGE_SIZE);
+	testName = "Creating and Reading Back Dummy Pages kiran";
+	SM_PageHandle* memPage;
+	CHECK(createPageFile(TESTFileName));
+	CHECK(openPageFile(TESTFileName, &fh));
+
+	TEST_CHECK(ensureCapacity(22, &fh));
+	createDummyPages(bm, 22);
+	checkDummyPages(bm, 22);
+
+	TEST_CHECK(ensureCapacity(1000, &fh));
+	createDummyPages(bm, 10000);
+	checkDummyPages(bm, 10000);
+
+	CHECK(destroyPageFile("testbuffer.bin"));
+
+	free(bm);
+	TEST_DONE();
+}
+
+
 
 void 
 createDummyPages(BM_BufferPool *bm, int num)
@@ -79,13 +113,9 @@ createDummyPages(BM_BufferPool *bm, int num)
   int i;
   BM_PageHandle *h = MAKE_PAGE_HANDLE();
   SM_FileHandle fh;
-  
-  //Append empty blocks to file
+
   CHECK(openPageFile ("testbuffer.bin", &fh));
-  for (i = 1; i < num; i++)
-  {
-  	CHECK(appendEmptyBlock(&fh));
-  }
+  CHECK(ensureCapacity (num, &fh));
   CHECK(closePageFile (&fh));
   
   CHECK(initBufferPool(bm, "testbuffer.bin", 3, RS_FIFO, NULL));
@@ -99,7 +129,6 @@ createDummyPages(BM_BufferPool *bm, int num)
     }
 
   CHECK(shutdownBufferPool(bm));
-  
 
   free(h);
 }
@@ -291,7 +320,7 @@ testLRU (void)
   // replace pages and check that it happens in LRU order
   for(i = 0; i < 5; i++)
   {
-      pinPage(bm, h, 5 + i);
+      pinPage(bm, h, i + 5);
       unpinPage(bm, h);
       ASSERT_EQUALS_POOL(poolContents[snapshot++], bm, "check pool content using pages");
   }
