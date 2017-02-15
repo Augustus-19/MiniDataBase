@@ -31,8 +31,8 @@ typedef int RC;
 /* file seek or read  */
 #define RC_FILE_SEEK_OR_IO_FAIL 10
 
-/* Invalid buffer pool size  */
-#define RC_INVALID_BUFFER_POOL_SIZE 11
+/* Error shutting down buffer pool  */
+#define RC_ERROR_SHUTDOWN_BUFFER_POOL 11
 
 /* Insufficient memory for buffer pool */
 #define RC_INSUFFICIENT_MEMORY 12
@@ -47,7 +47,7 @@ typedef int RC;
 #define RC_ERROR_FORCING_PAGE 15
 
 /* Error marking page dirty */
-#define RC_ERROR_MARKING_DIRTY 15
+#define RC_ERROR_MARKING_DIRTY 16
 
 #define RC_RM_COMPARE_VALUE_OF_DIFFERENT_DATATYPE 200
 #define RC_RM_EXPR_RESULT_IS_NOT_BOOLEAN 201
