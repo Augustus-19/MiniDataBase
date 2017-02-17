@@ -80,6 +80,11 @@ In this method we have maintained the postion of the last read frame from the bu
 the frame, position count will start form 0th position.
 LRU: Least Recently Used -
 In this method we have used queue of singly linked list to keep track of the least recently used pages. Every time page is referenced, buffer page reference is put to the end of the  singly linked list. So least recently used pages are always placed in the head of the queue and recently used files are kept in the tail of the queue. Every time new page request received queue is scanned fromt he head of the queue and alloted files are returned.
+CLOCK:
+In this method all the page is evicted on second time.
+If reference bit is 0 then page will be evicted and if 1 then page is given second chance by just changing reference bit to 0.
+Page will be replaced only if the fix count is 0 and reference bit is 0.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 TESTCASES
