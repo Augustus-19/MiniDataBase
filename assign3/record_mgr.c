@@ -161,7 +161,8 @@ RC createTable(char *name, Schema *schema) {
 		printf("close pageFile failed");
 		return retVal;
 	}
-	printRecordManager(&metaData, schema, "createFun");
+	/* enable below function to cross verity data */
+	// printRecordManager(&metaData, schema, "createFun");
 	
 	return retVal;
 }
@@ -253,6 +254,8 @@ RC openTable(RM_TableData *rel, char *name) {
 		printf("Unpin failed ");
 		return retVal;
 	}
+	
+	/* enable below function to cross verity data */
 	printRecordManager(recordMgrData, schema, "OpenTable");
 	return retVal;
 }
