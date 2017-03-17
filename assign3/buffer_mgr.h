@@ -16,14 +16,50 @@ typedef enum ReplacementStrategy {
   RS_LRU_K = 4
 } ReplacementStrategy;
 
+
+// replacement strategy structures
+// node with page frame and next data info
+typedef struct Node{
+  int frameNumber;
+  struct Node * NEXT;
+}NODE;
+
+// Queue structure which will hold head and tail of the queue
+// Queue structure used for LRU algo
+typedef struct LRUQueue {
+	NODE * allotedHead;
+	NODE * allotedTail;
+}LRUQUEUE;
+// end of replacement strategy structures
+
 // Data Types and Structures
 typedef int PageNumber;
 #define NO_PAGE -1
+
+typedef struct _PAGE_FRAME{
+	char frame[PAGE_SIZE];
+}PAGE_FRAME;
+
+typedef struct _BM_Pool_Mgmt_Info {
+  PAGE_FRAME * poolAddr; //address of buffer pool
+  PageNumber* pageNums;
+  bool* dirtyFlags;
+  int* fixCount;
+  int readCount;
+  int writeCount;
+  void * stratData;
+
+} BM_Pool_Mgmt_Info;
 
 typedef struct BM_BufferPool {
   char *pageFile;
   int numPages;
   ReplacementStrategy strategy;
+  LRUQUEUE * lruQueue;
+  int fifoIndex;  // used for fifo
+  // 0 evict if 1 clear to 0 then advance
+  int *clockEvictionRef;
+  int clockIndex;
   void *mgmtData; // use this one to store the bookkeeping info your buffer 
                   // manager needs for a buffer pool
 } BM_BufferPool;
@@ -39,6 +75,12 @@ typedef struct BM_PageHandle {
 
 #define MAKE_PAGE_HANDLE()				\
   ((BM_PageHandle *) malloc (sizeof(BM_PageHandle)))
+
+// page replacement
+int getPageSlotFIFO(BM_BufferPool *const bm);
+int getPageSlotLRU(BM_BufferPool *const bm);
+int getPageSlotCLOCK(BM_BufferPool *const bm);
+void markPageFrameMarked(BM_BufferPool *const bm, int pageFrame);
 
 // Buffer Manager Interface Pool Handling
 RC initBufferPool(BM_BufferPool *const bm, const char *const pageFileName, 

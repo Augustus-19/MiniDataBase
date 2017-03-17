@@ -2,10 +2,18 @@
 #define STORAGE_MGR_H
 
 #include "dberror.h"
+#include "dt.h"
 
 /************************************************************
  *                    handle data structures                *
  ************************************************************/
+typedef struct _Mgmt_Info {
+  int fd;  //File Descriptor
+  bool mmapped; //Memory Mapped or not
+  char * map_addr; //address of mapped memory
+  int map_size; //Size of mapped memory
+} Mgmt_Info;
+ 
 typedef struct SM_FileHandle {
   char *fileName;
   int totalNumPages;
