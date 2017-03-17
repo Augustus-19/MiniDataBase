@@ -25,6 +25,7 @@ RC createPageFile (char *fileName)
 
 	int fd;
 	int ret;
+	printf("fileName %s",fileName);
 
 	/* Invalid or null pointer check*/	
 	if(fileName == NULL){
