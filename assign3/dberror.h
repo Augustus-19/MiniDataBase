@@ -49,6 +49,12 @@ typedef int RC;
 /* Error marking page dirty */
 #define RC_ERROR_MARKING_DIRTY 16
 
+/* Error memory allocation failed*/ 
+#define RC_ERROR_MALLOC_FAILED 17 
+
+/* Error Record not found*/
+#define RC_RECORD_NOT_FOUND 18
+
 #define RC_RM_COMPARE_VALUE_OF_DIFFERENT_DATATYPE 200
 #define RC_RM_EXPR_RESULT_IS_NOT_BOOLEAN 201
 #define RC_RM_BOOLEAN_EXPR_ARG_IS_NOT_BOOLEAN 202

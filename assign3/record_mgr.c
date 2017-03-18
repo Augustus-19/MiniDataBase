@@ -12,7 +12,7 @@
 #define COSNT_STRINGLEN 30 //string length we consider as constant length
 #define BUFFER_FRAME_SIZE 10 // size of buffer frame to initialize buffer pool
 #define PAGE_REPLACEMENT_ALGO RS_FIFO // which page replacement algo to use
-#define RECORD_DELIMITER '@'
+#define RECORD_DELIMITER '#'
 
 // meta data to store in the first page
 typedef struct MetaData {
@@ -367,8 +367,12 @@ RC insertRecord(RM_TableData *rel, Record *record) {
 		goto retryWithNextPage;
 	}
 
-	markDirty(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
-	
+	retVal = markDirty(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+	if (retVal != RC_OK) {
+		printf("markDirty failed");
+		return retVal;
+	}
+
 	// move pointer to slot address
 	bufferSlotPage = bufferSlotPage + rid->slot * recordSizeWithDelimiter;
 
@@ -401,6 +405,51 @@ RC updateRecord(RM_TableData *rel, Record *record) {
 }
 
 RC getRecord(RM_TableData *rel, RID id, Record *record) {
+
+	RC retVal = RC_OK;
+	RecordMgrData* recordMgrData = (RecordMgrData*)rel->mgmtData;
+	RID *rid = &id;
+	int recordSizeWithDelimiter = recordMgrData->recordSize + 1; // + 1 for extrac delimiter character
+	int recordSizeWithoutDelimiter = recordMgrData->recordSize;
+	//RID *rid = &(record->id);
+	char *bufferSlotPage = NULL;
+	char *recordData = NULL;
+
+	// pin the free page to write record
+	retVal = pinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle, rid->page);
+	if (retVal != RC_OK) {
+		printf("PinPage failed");
+		return retVal;
+	}
+
+	// get the page from buffer slot and insert record
+	bufferSlotPage = recordMgrData->bufferPageHandle.data;
+
+	// move to the slot in the give page
+	bufferSlotPage = bufferSlotPage + (recordSizeWithDelimiter * (rid->slot));
+
+	if (*bufferSlotPage != RECORD_DELIMITER) {
+		retVal = RC_RECORD_NOT_FOUND;
+		return retVal;
+	}
+	else {
+		// move one character so we wont read delimiter to record data
+		bufferSlotPage = bufferSlotPage + 1;
+		// updated data
+		recordData = record->data;
+		memcpy(recordData, bufferSlotPage, recordSizeWithoutDelimiter);
+		// updated id
+		record->id = id;
+	}
+
+
+	retVal = unpinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+	if (retVal != RC_OK) {
+		printf("Unpin failed ");
+		return retVal;
+	}
+
+	return retVal;
 
 }
 
