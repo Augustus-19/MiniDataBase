@@ -394,13 +394,18 @@ testInsertManyRecords(void)
       realInserts[i] = inserts[i%10];
       realInserts[i].a = i;
       r = fromTestRecord(schema, realInserts[i]);
-	  /*to test till set attribute*/
+	  /*to test till set attribute start*/
 	  //return; // remove this after test
+	  /*to test till set attribute end*/
       TEST_CHECK(insertRecord(table,r)); 
       rids[i] = r->id;
     }
   TEST_CHECK(closeTable(table));
   TEST_CHECK(openTable(table, "test_table_t"));
+
+  /*remove this after test of insertRecord function start*/
+  //return;
+  /*remove this after test of insertRecord function end*/
 
   // retrieve records from the table and compare to expected final stage
   for(i = 0; i < numInserts; i++)

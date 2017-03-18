@@ -4,6 +4,7 @@
 #include "buffer_mgr.h"
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 
 
 
@@ -11,6 +12,7 @@
 #define COSNT_STRINGLEN 30 //string length we consider as constant length
 #define BUFFER_FRAME_SIZE 10 // size of buffer frame to initialize buffer pool
 #define PAGE_REPLACEMENT_ALGO RS_FIFO // which page replacement algo to use
+#define RECORD_DELIMITER '@'
 
 // meta data to store in the first page
 typedef struct MetaData {
@@ -309,9 +311,84 @@ int getNumTuples(RM_TableData *rel) {
 
 }
 
+int searchForFreeSlot(char* bufferSlotPage,int totalSlotCount,int recordSizeWithDelimiter) {
+
+	int retVal = -1;
+	int i = 0;
+	for (i = 0; i < totalSlotCount; i++) {
+		if (bufferSlotPage[recordSizeWithDelimiter*i] != RECORD_DELIMITER){
+			retVal = i;
+			return retVal;
+		}
+	}
+	return retVal;
+}
 
 // handling records in a table
 RC insertRecord(RM_TableData *rel, Record *record) {
+
+	RC retVal = RC_OK;
+
+	RecordMgrData* recordMgrData = (RecordMgrData*)rel->mgmtData;
+	int recordSizeWithDelimiter = recordMgrData->recordSize + 1; // + 1 for extrac delimiter character
+	int recordSizeWithoutDelimiter = recordMgrData->recordSize;
+	RID *rid = &(record->id);
+	char *bufferSlotPage = NULL;
+	int totalSlotCount = 0;
+
+	/**********************Label************************/
+	retryWithNextPage:
+	// update record id
+	rid->page = recordMgrData->firstFreePage;
+	rid->slot = -1;
+
+	// pin the free page to write record
+	retVal = pinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle, rid->page);
+	if (retVal != RC_OK) {
+		printf("PinPage failed");
+		return retVal;
+	}
+
+	// get the page from buffer slot and insert record
+	bufferSlotPage = recordMgrData->bufferPageHandle.data;
+
+	totalSlotCount = (int)(PAGE_SIZE / recordSizeWithDelimiter);
+
+	rid->slot = searchForFreeSlot(bufferSlotPage, totalSlotCount, recordSizeWithDelimiter);
+
+	if (rid->slot == -1) {
+		//printf("No Free slot in current page retrying with nextPage");
+		retVal = unpinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+		if (retVal != RC_OK) {
+			printf("Unpin failed ");
+			return retVal;
+		}
+		recordMgrData->firstFreePage++;
+		goto retryWithNextPage;
+	}
+
+	markDirty(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+	
+	// move pointer to slot address
+	bufferSlotPage = bufferSlotPage + rid->slot * recordSizeWithDelimiter;
+
+	// add delimiter in begining
+	*bufferSlotPage = RECORD_DELIMITER;
+	bufferSlotPage = bufferSlotPage + 1;
+
+	memcpy(bufferSlotPage, record->data, recordSizeWithoutDelimiter);
+
+	retVal = unpinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+	if (retVal != RC_OK) {
+		printf("Unpin failed ");
+		return retVal;
+	}
+
+	// copy updated new record id
+	record->id = *rid;
+	// update totalNoOfTuples
+	recordMgrData->numberOfTuples++;
+	return retVal;
 
 }
 
