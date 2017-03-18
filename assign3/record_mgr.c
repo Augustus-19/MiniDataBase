@@ -216,7 +216,6 @@ RC openTable(RM_TableData *rel, char *name) {
 	schema->dataTypes = (DataType*)malloc(sizeof(DataType)*(schema->numAttr));
 	schema->typeLength = (int*)malloc(sizeof(int)*schema->numAttr);
 	
-	int *check = (int*)malloc(sizeof(int)*100);
 
 	//allocate memory for name
 	for (i = 0; i < schema->numAttr; i++) {
@@ -256,16 +255,49 @@ RC openTable(RM_TableData *rel, char *name) {
 	}
 	
 	/* enable below function to cross verity data */
-	printRecordManager(recordMgrData, schema, "OpenTable");
+	//printRecordManager(recordMgrData, schema, "OpenTable");
 	return retVal;
 }
 
 RC closeTable(RM_TableData *rel) {
 	
 	RC retVal = RC_OK;
-	SM_FileHandle fh;
-	RecordMgrData* recordMgrData = (RecordMgrData*)malloc(sizeof(RecordMgrData));
-	Schema *schema = (Schema*)malloc(sizeof(Schema));
+	//SM_FileHandle fh;
+	RecordMgrData* recordMgrData = (RecordMgrData*)rel->mgmtData;
+
+	retVal = pinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle, META_PAGENO);
+	if (retVal != RC_OK) {
+		printf("PinPage failed");
+		return retVal;
+	}
+
+	char* slotPageData = recordMgrData->bufferPageHandle.data;
+	*(int*)slotPageData = recordMgrData->numberOfTuples;
+
+	markDirty(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+
+	retVal = unpinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+	if (retVal != RC_OK) {
+		printf("Unpin failed ");
+		return retVal;
+	}
+
+	retVal = shutdownBufferPool(&recordMgrData->bufferPool);
+	if (retVal != RC_OK) {
+		printf("Shut DownBufferPool failed");
+		return retVal;
+	}
+
+	if (rel->mgmtData != NULL) {
+		free(rel->mgmtData);
+		rel->mgmtData = NULL;
+	}
+	
+	if (rel->schema != NULL) {
+		freeSchema(rel->schema);
+	}
+
+	return retVal;
 
 }
 
@@ -351,6 +383,23 @@ Schema *createSchema(int numAttr, char **attrNames, DataType *dataTypes, int *ty
 
 RC freeSchema(Schema *schema) {
 
+	if (schema->dataTypes != NULL) {
+		free(schema->dataTypes);
+		schema->dataTypes = NULL;
+	}
+
+	if (schema->typeLength != NULL) {
+		free(schema->typeLength);
+		schema->typeLength = NULL;
+	}
+
+	if (schema->keyAttrs != NULL) {
+		free(schema->keyAttrs);
+		schema->keyAttrs = NULL;
+	}
+
+	free(schema);
+	schema = NULL;
 }
 
 

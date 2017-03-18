@@ -380,6 +380,14 @@ testInsertManyRecords(void)
   TEST_CHECK(createTable("test_table_t",schema));
   TEST_CHECK(openTable(table, "test_table_t"));
   
+  // added for testing remove
+  // testing of  initRecordManager() createTable() openTable() and closeTable(table)
+  /*
+  TEST_CHECK(closeTable(table));
+  return;
+  */
+  //****** test ends here
+  
   // insert rows into table
   for(i = 0; i < numInserts; i++)
     {
