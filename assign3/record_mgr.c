@@ -304,10 +304,19 @@ RC closeTable(RM_TableData *rel) {
 }
 
 RC deleteTable(char *name) {
-
+	RC retVal = RC_OK;
+	retVal = destroyPageFile(name);
+	if (retVal != RC_OK) {
+		printf("destroyPageFile failed");
+		return retVal;
+	}
+	return retVal;
 }
 
 int getNumTuples(RM_TableData *rel) {
+
+	RecordMgrData* recordMgrData = (RecordMgrData*)rel->mgmtData;
+	return recordMgrData->numberOfTuples;
 
 }
 
@@ -543,6 +552,16 @@ RC createRecord(Record **record, Schema *schema) {
 }
 
 RC freeRecord(Record *record) {
+
+	RC retVal = RC_OK;
+	if (record != NULL) {
+		if (record->data != NULL) {
+			free(record->data);
+			record->data = NULL;
+		}
+		free(record);
+	}
+	return retVal;
 
 }
 
