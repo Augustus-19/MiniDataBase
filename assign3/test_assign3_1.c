@@ -78,9 +78,9 @@ main (void)
   testName = "";
 
   testInsertManyRecords();
-  //testRecords();
-  //testCreateTableAndInsert();
-  //testUpdateTable();
+  testRecords();
+  testCreateTableAndInsert();
+  testUpdateTable();
   //testScans();
   //testScansTwo();
   //testMultipleScans();
@@ -416,8 +416,8 @@ testInsertManyRecords(void)
     }
  
   /*remove this after test of getRecord function start*/
-  printf("\n\nFinal Final Final !!!!!!!!!!!!!");
-  return;
+  //printf("\n\nFinal Final Final !!!!!!!!!!!!!");
+  //return;
     /*remove this after test of getRecord function start*/
   r = fromTestRecord(schema, updates[0]);
   r->id = rids[randomRec];

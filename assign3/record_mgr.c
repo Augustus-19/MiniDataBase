@@ -13,6 +13,8 @@
 #define BUFFER_FRAME_SIZE 10 // size of buffer frame to initialize buffer pool
 #define PAGE_REPLACEMENT_ALGO RS_FIFO // which page replacement algo to use
 #define RECORD_DELIMITER '#'
+#define RECORD_DELIMITER_TOMB '~'
+#define TOMBSTONE 0
 
 // meta data to store in the first page
 typedef struct MetaData {
@@ -164,7 +166,7 @@ RC createTable(char *name, Schema *schema) {
 		return retVal;
 	}
 	/* enable below function to cross verity data */
-	// printRecordManager(&metaData, schema, "createFun");
+	 printRecordManager(&metaData, schema, "createFun");
 	
 	return retVal;
 }
@@ -257,7 +259,7 @@ RC openTable(RM_TableData *rel, char *name) {
 	}
 	
 	/* enable below function to cross verity data */
-	//printRecordManager(recordMgrData, schema, "OpenTable");
+	printRecordManager(recordMgrData, schema, "OpenTable");
 	return retVal;
 }
 
@@ -406,11 +408,95 @@ RC insertRecord(RM_TableData *rel, Record *record) {
 }
 
 RC deleteRecord(RM_TableData *rel, RID id) {
+	RC retVal = RC_OK;
+	RecordMgrData* recordMgrData = (RecordMgrData*)rel->mgmtData;
 
+	int recordSizeWithDelimiter = recordMgrData->recordSize + 1; // + 1 for extrac delimiter character
+	int recordSizeWithoutDelimiter = recordMgrData->recordSize;
+	char *bufferSlotPage = NULL;
+	char *tempBufferSlotPage = NULL; // for address movement
+
+	RID *rid = &id;
+
+	// pin the free page to write record
+	retVal = pinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle, rid->page);
+	if (retVal != RC_OK) {
+		printf("PinPage failed");
+		return retVal;
+	}
+
+	//As we are deleting we are updating number of tupes
+	recordMgrData->numberOfTuples--;
+	bufferSlotPage = recordMgrData->bufferPageHandle.data;
+	// move to the slot which needs to be deleted
+	tempBufferSlotPage = bufferSlotPage + (recordSizeWithDelimiter * rid->slot);
+	
+	if (TOMBSTONE) {
+		// add tombstone to avoid reusing
+		*tempBufferSlotPage = RECORD_DELIMITER_TOMB;
+	}
+	else {
+		// we want to reuse deleted record space
+		*tempBufferSlotPage = '\0';
+	}
+	
+	retVal = markDirty(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+	if (retVal != RC_OK) {
+		printf("markDirty failed");
+		return retVal;
+	}
+
+	retVal = unpinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+	if (retVal != RC_OK) {
+		printf("Unpin failed ");
+		return retVal;
+	}
+
+	return retVal;
 }
 
 RC updateRecord(RM_TableData *rel, Record *record) {
+	RC retVal = RC_OK;
+	RecordMgrData* recordMgrData = (RecordMgrData*)rel->mgmtData;
 
+	int recordSizeWithDelimiter = recordMgrData->recordSize + 1; // + 1 for extrac delimiter character
+	int recordSizeWithoutDelimiter = recordMgrData->recordSize;
+	char *bufferSlotPage = NULL;
+	char *tempBufferSlotPage = NULL; // for address movement
+
+	RID *rid = &(record->id);
+
+	// pin the free page to write record
+	retVal = pinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle, rid->page);
+	if (retVal != RC_OK) {
+		printf("PinPage failed");
+		return retVal;
+	}
+
+	bufferSlotPage = recordMgrData->bufferPageHandle.data;
+	tempBufferSlotPage = bufferSlotPage;
+
+	tempBufferSlotPage = tempBufferSlotPage + recordSizeWithDelimiter * (rid->slot);
+	
+	// skip delemeter
+	tempBufferSlotPage = tempBufferSlotPage + 1;
+
+	memcpy(tempBufferSlotPage, record->data, recordSizeWithoutDelimiter);
+
+	retVal = markDirty(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+	if (retVal != RC_OK) {
+		printf("markDirty failed");
+		return retVal;
+	}
+
+	retVal = unpinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+	if (retVal != RC_OK) {
+		printf("Unpin failed ");
+		return retVal;
+	}
+
+	return retVal;
+	
 }
 
 RC getRecord(RM_TableData *rel, RID id, Record *record) {
