@@ -406,6 +406,14 @@ RC freeSchema(Schema *schema) {
 // dealing with records and attribute values
 RC createRecord(Record **record, Schema *schema) {
 
+	RC retVal = RC_OK;
+	*record = (Record*)malloc(sizeof(Record));
+	(*record)->data = (char*)malloc(getRecordSize(schema));
+
+	(*record)->id.page = -1;
+	(*record)->id.slot = -1;
+
+	return retVal;
 }
 
 RC freeRecord(Record *record) {
@@ -414,8 +422,128 @@ RC freeRecord(Record *record) {
 
 RC getAttr(Record *record, Schema *schema, int attrNum, Value **value) {
 
+	RC retVal = RC_OK;
+	int offsetInsideRecord = 0;
+	char* recordData = record->data;
+	int stringLength = 0;
+	char* tempBuffer = NULL;
+	*value = (Value*)malloc(sizeof(Value));
+
+	findOffsetForAttrNum(attrNum, schema, &offsetInsideRecord);
+	// move record pointer to the attrNum position
+	recordData = recordData + offsetInsideRecord;
+
+	switch (schema->dataTypes[attrNum])
+	{
+
+	case DT_BOOL:
+		(*value)->dt = DT_BOOL;
+		memcpy(&((*value)->v.boolV), recordData, sizeof(bool));
+		break;
+
+	case DT_FLOAT:
+		(*value)->dt = DT_FLOAT;
+		memcpy(&((*value)->v.floatV), recordData, sizeof(float));
+		break;
+
+	case DT_INT:
+		(*value)->dt = DT_INT;
+		memcpy(&((*value)->v.intV), recordData, sizeof(int));
+		break;
+
+	case DT_STRING:
+		stringLength = 0;
+		stringLength = schema->typeLength[attrNum];
+		(*value)->dt = DT_STRING;
+		//tempBuffer = (char*)malloc(stringLength + 1);
+		(*value)->v.stringV = (char*)malloc(stringLength + 1);
+		strncpy((*value)->v.stringV, recordData, stringLength);
+		(*value)->v.stringV[stringLength] = '\0';
+		break;
+
+	default:
+		printf("setAttr() Shouldnt be here !!!");
+		break;
+	}
+	return retVal;
+
 }
 
 RC setAttr(Record *record, Schema *schema, int attrNum, Value *value) {
 
+	RC retVal = RC_OK;
+	int offsetInsideRecord = 0;
+	char* recordData = record->data;
+	int stringLength = 0;
+	char* tempBuffer = NULL;
+
+	findOffsetForAttrNum(attrNum, schema, &offsetInsideRecord);
+	// move record pointer to the attrNum position
+	recordData = recordData + offsetInsideRecord;
+
+	switch (schema->dataTypes[attrNum])
+	{
+
+	case DT_BOOL:
+		*(bool*)recordData = value->v.boolV;
+		break;
+
+	case DT_FLOAT:
+		*(float*)recordData = value->v.floatV;
+		break;
+
+	case DT_INT:
+		*(int*)recordData = value->v.intV;
+		break;
+
+	case DT_STRING:
+		stringLength = 0;
+		stringLength = schema->typeLength[attrNum];
+		tempBuffer = (char*)malloc(stringLength + 1);
+		strncpy(tempBuffer, value->v.stringV, stringLength);
+		// add delemeter in the end
+		tempBuffer[stringLength] = '\0';
+		strncpy(recordData, tempBuffer, stringLength);
+		free(tempBuffer);
+		break;
+
+	default:
+		printf("setAttr() Shouldnt be here !!!");
+		break;
+	}
+	return retVal;
+
+}
+
+// find the offset for the attrNum and give back the offset
+RC findOffsetForAttrNum(int attrNum, Schema *schema, int *offset) {
+
+	RC retVal = RC_OK;
+	int posOffset = 0;
+	int currentPosition = 0;
+	DataType dataTypes;
+
+	// while its position is not reached addup the typelength and calculate the position for attrNum
+	while (currentPosition < attrNum) {
+		// get data type
+		dataTypes = schema->dataTypes[currentPosition];
+		
+		if (dataTypes == DT_STRING) {
+			posOffset = posOffset + schema->typeLength[currentPosition];
+		}
+		else if (dataTypes == DT_FLOAT) {
+			posOffset = posOffset + sizeof(float);
+		}
+		else if (dataTypes == DT_INT) {
+			posOffset = posOffset + sizeof(int);
+		}
+		else if (dataTypes == DT_BOOL) {
+			posOffset = posOffset + sizeof(bool);
+		}
+
+		currentPosition++;
+	}
+
+	*offset = posOffset;
+	return retVal;
 }

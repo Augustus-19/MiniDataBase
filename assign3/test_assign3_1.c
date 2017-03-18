@@ -394,6 +394,8 @@ testInsertManyRecords(void)
       realInserts[i] = inserts[i%10];
       realInserts[i].a = i;
       r = fromTestRecord(schema, realInserts[i]);
+	  /*to test till set attribute*/
+	  //return; // remove this after test
       TEST_CHECK(insertRecord(table,r)); 
       rids[i] = r->id;
     }
