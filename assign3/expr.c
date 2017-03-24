@@ -74,6 +74,7 @@ boolAnd (Value *left, Value *right, Value *result)
 {
   if (left->dt != DT_BOOL || right->dt != DT_BOOL)
     THROW(RC_RM_BOOLEAN_EXPR_ARG_IS_NOT_BOOLEAN, "boolean AND requires boolean inputs");
+  result->dt = DT_BOOL;
   result->v.boolV = (left->v.boolV && right->v.boolV);
 
   return RC_OK;
@@ -84,6 +85,7 @@ boolOr (Value *left, Value *right, Value *result)
 {
   if (left->dt != DT_BOOL || right->dt != DT_BOOL)
     THROW(RC_RM_BOOLEAN_EXPR_ARG_IS_NOT_BOOLEAN, "boolean OR requires boolean inputs");
+  result->dt = DT_BOOL;
   result->v.boolV = (left->v.boolV || right->v.boolV);
 
   return RC_OK;
@@ -104,12 +106,12 @@ evalExpr (Record *record, Schema *schema, Expr *expr, Value **result)
       bool twoArgs = (op->type != OP_BOOL_NOT);
       //      lIn = (Value *) malloc(sizeof(Value));
       //    rIn = (Value *) malloc(sizeof(Value));
-      
+
       CHECK(evalExpr(record, schema, op->args[0], &lIn));
       if (twoArgs)
 	CHECK(evalExpr(record, schema, op->args[1], &rIn));
 
-      switch(op->type) 
+      switch(op->type)
 	{
 	case OP_BOOL_NOT:
 	  CHECK(boolNot(lIn, *result));

@@ -6,96 +6,100 @@
 #include <stdlib.h>
 #include <math.h>
 
-
-
-#define META_PAGENO 0 // first page reserved for metadata
-#define COSNT_STRINGLEN 30 //string length we consider as constant length
-#define BUFFER_FRAME_SIZE 10 // size of buffer frame to initialize buffer pool
-#define PAGE_REPLACEMENT_ALGO RS_FIFO // which page replacement algo to use
+#define META_PAGENO 0 // Page reserved for metadata
+#define MAX_ATTRNAME_LEN 30 //Maximum length of the attribute name
+#define BUFFER_FRAME_SIZE 10 // Size of page frame to initialize buffer pool
+#define PAGE_REPLACEMENT_ALGO RS_FIFO // Page replacement algorithm to use
 #define RECORD_DELIMITER '#'
 #define RECORD_DELIMITER_TOMB '~'
 #define TOMBSTONE 0
 
-// meta data to store in the first page
-typedef struct MetaData {
+// Table meta data
+typedef struct RecordMgrData
+{
 	int numberOfTuples;
 	int firstFreePage;
 	int recordSize;
 	int numberOfAttr;
 	Schema schema;
-}MetaData;
-
-typedef struct RecordMgrData {
-	int numberOfTuples;
-	int firstFreePage;
-	int recordSize;
-	int numberOfAttr;
-	Schema schema;
-	BM_PageHandle bufferPageHandle;
 	BM_BufferPool bufferPool;
 }RecordMgrData;
+
+typedef struct RM_ScaningRecordInfo
+{
+	Expr *condition; //Search condition
+	int pageCurrentPosition; //Current page index
+	int slotCurrentPosition; // Current slot index
+}RM_ScaningRecordInfo;
+
 // table and manager
-RC initRecordManager(void *mgmtData) {
+RC initRecordManager(void *mgmtData)
+{
+	RC retVal = RC_OK;
 	initStorageManager();
-	return RC_OK;
-	
+	return retVal;
 }
 
-RC shutdownRecordManager() {
-	return RC_OK;
+RC shutdownRecordManager()
+{
+	RC retVal = RC_OK;
+	return retVal;
 }
 
-void printRecordManager(RecordMgrData* recordMgr,Schema * schema,char *callingFunctionName) {
-
-
+void printRecordManager(RecordMgrData* recordMgr, Schema * schema, char *callingFunctionName)
+{
 	int i;
 
 	printf("\n*********%s********\n", callingFunctionName);
-	printf("numberOfTuples = %d\n", recordMgr->numberOfTuples);
-	printf("firstFreePage = %d\n", recordMgr->firstFreePage);
-	printf("numberOfAttr = %d\n", recordMgr->numberOfAttr);
-	printf("recordSize = %d\n", recordMgr->recordSize);
+	printf("Number of Tuples = %d\n", recordMgr->numberOfTuples);
+	printf("First Free Page = %d\n", recordMgr->firstFreePage);
+	printf("Number of Attributes = %d\n", recordMgr->numberOfAttr);
+	printf("Record Size = %d\n", recordMgr->recordSize);
 	
 	for (i = 0; i < recordMgr->numberOfAttr; i++) {
-		printf("attrNames %s ", schema->attrNames[i]);
+		printf("AttributeName %s ", schema->attrNames[i]);
 		printf("DataType %d ", schema->dataTypes[i]);
 		printf("DataLength %d \n", schema->typeLength[i]);
 	}
 
-	printf("key len %d\n", schema->keySize);
+	printf("Number of Key Attributes = %d\nKey Attributes = ", schema->keySize);
 	for (i = 0; i < schema->keySize; i++) {
-		printf("%d ->", schema->keyAttrs[i]);
+		printf("%d, ", schema->keyAttrs[i]);
 	}
-
+    printf("\b\b\n");
 }
 
 RC createTable(char *name, Schema *schema) {
 
 	RC retVal = RC_OK;
 	SM_FileHandle fh;
-	//MetaData metaData;
 	RecordMgrData metaData;
 	int i = 0;
 	int intSize = sizeof(int);
 	
-	retVal = createPageFile(name); // create pagefile for each table
-	if (retVal != RC_OK) {
-		printf("failed to create pageFile");
-		return retVal;
+	//Create pagefile for each table
+	retVal = createPageFile(name);
+	if (retVal != RC_OK)
+	{
+		printf("Failed to create pageFile");
+		goto END;
 	}
 
-	// open pagefile to write metadata
+	//Open pagefile to write metadata
 	retVal = openPageFile(name, &fh);
-	if (retVal != RC_OK) {
-		printf("failed to open pageFile");
-		return retVal;
+	if (retVal != RC_OK)
+	{
+		printf("Failed to open pageFile");
+		goto END;
 	}
 
+	//Initialize
 	metaData.numberOfTuples = 0;
 	metaData.firstFreePage = 1;
 	metaData.recordSize = getRecordSize(schema);
 	metaData.numberOfAttr = schema->numAttr;
-	// copying all schema relate info to metadata
+
+	//Copy all schema related data from schema structure
 	metaData.schema.attrNames = schema->attrNames;
 	metaData.schema.dataTypes = schema->dataTypes;
 	metaData.schema.keyAttrs = schema->keyAttrs;
@@ -103,36 +107,34 @@ RC createTable(char *name, Schema *schema) {
 	metaData.schema.numAttr = schema->numAttr;
 	metaData.schema.typeLength = schema->typeLength;
 
-	//to write first page of file with metadata
+	//For writing first page of pagefile with table metadata
 	char page[PAGE_SIZE];
-	char *pagePtr = (char *)&page;
-	// testing
-	char readPage[PAGE_SIZE];
-	char *readPagePtr = readPage;
-	memset(readPagePtr, 0, PAGE_SIZE);
+	char *pagePtr = page;
+
+	//For validating the write
+	//char readPage[PAGE_SIZE];
+	//char *readPagePtr = readPage;
+	//memset(readPagePtr, 0, PAGE_SIZE);
+
 	memset(pagePtr, 0, PAGE_SIZE);
 
 	*((int*)pagePtr) = metaData.numberOfTuples;
-	//printf("%d", *((int*)pagePtr));
 	pagePtr = pagePtr + intSize;
 
 	*((int*)pagePtr) = metaData.firstFreePage;
-	//printf("%d", *((int*)pagePtr));
 	pagePtr = pagePtr + intSize;
 
 	*((int*)pagePtr) = metaData.recordSize;
-	//printf("%d", *((int*)pagePtr));
 	pagePtr = pagePtr + intSize;
 
 	*((int*)pagePtr) = metaData.numberOfAttr;
-	//printf("%d", *((int*)pagePtr));
 	pagePtr = pagePtr + intSize;
 
-	// copy all attributes detail
+	// Copy all attribute's detail
 	for (i = 0; i < schema->numAttr; i++) {
 
-		strncpy(pagePtr, schema->attrNames[i], COSNT_STRINGLEN);
-		pagePtr = pagePtr + COSNT_STRINGLEN;
+		strncpy(pagePtr, schema->attrNames[i], MAX_ATTRNAME_LEN);
+		pagePtr = pagePtr + MAX_ATTRNAME_LEN;
 
 		*(int*)pagePtr = (int)schema->dataTypes[i];
 		pagePtr = pagePtr + intSize;
@@ -145,7 +147,7 @@ RC createTable(char *name, Schema *schema) {
 	*(int*)pagePtr = (int)schema->keySize;
 	pagePtr = pagePtr + intSize;
 
-	//copy all key details
+	//Copy all key details
 	for (i = 0; i < schema->keySize; i++) {
 		*(int*)pagePtr = schema->keyAttrs[i];
 		pagePtr = pagePtr + intSize;
@@ -153,66 +155,69 @@ RC createTable(char *name, Schema *schema) {
 
 	retVal = writeBlock(META_PAGENO, &fh, page);
 	if (retVal != RC_OK) {
-		printf("writing block failed");
-		return retVal;
+		printf("Writing block failed\n");
+		goto END;
 	}
 
-	/* for testig */
-	//retVal = readBlock(META_PAGENO, &fh, pagePtr);
+	//For validating the write
+	//retVal = readBlock(META_PAGENO, &fh, readPagePtr);
+	//if (retVal != RC_OK)
+	//{
+		//printf("Reading block failed\n");
+		//goto END;
+	//}
 	
 	retVal = closePageFile(&fh);
 	if (retVal != RC_OK) {
 		printf("close pageFile failed");
-		return retVal;
+		goto END;
 	}
-	/* enable below function to cross verity data */
-	 printRecordManager(&metaData, schema, "createFun");
-	
+
+	/* enable below function to cross verify data */
+	 printRecordManager(&metaData, schema, "createTable");
+
+END:
 	return retVal;
 }
 
-RC openTable(RM_TableData *rel, char *name) {
-
-	RC retVal;
+RC openTable(RM_TableData *rel, char *name)
+{
+	RC retVal = RC_OK;
 	SM_PageHandle pagePtr;
 	RecordMgrData* recordMgrData = (RecordMgrData*)malloc(sizeof(RecordMgrData));
 	Schema *schema = (Schema*)malloc(sizeof(Schema));
 	int i = 0;
 	int intSize = sizeof(int);
-
+	BM_PageHandle bufferPageHandle;
 
 	rel->mgmtData = recordMgrData;
 	rel->name = name;
 
 	retVal = initBufferPool(&recordMgrData->bufferPool, name, BUFFER_FRAME_SIZE, PAGE_REPLACEMENT_ALGO, NULL);
 	if (retVal != RC_OK) {
-		printf("BufferPool Initialization failed");
+		printf("BufferPool initialization failed \n");
 		return retVal;
 	}
 
-	retVal = pinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle, META_PAGENO);
+	retVal = pinPage(&recordMgrData->bufferPool, &bufferPageHandle, META_PAGENO);
 	if (retVal != RC_OK) {
-		printf("PinPage failed");
+		printf("Pin page failed\n");
 		return retVal;
 	}
 
-	pagePtr = (char*)recordMgrData->bufferPageHandle.data;
+	pagePtr = (char*)bufferPageHandle.data;
 
 	recordMgrData->numberOfTuples = *((int*)pagePtr);
-	//printf("%d", *((int*)pagePtr));
 	pagePtr = pagePtr + intSize;
 
 	recordMgrData->firstFreePage = *((int*)pagePtr);
-	//printf("%d", *((int*)pagePtr));
 	pagePtr = pagePtr + intSize;
 
 	recordMgrData->recordSize = *((int*)pagePtr);
-	//printf("%d", *((int*)pagePtr));
 	pagePtr = pagePtr + intSize;
 
 	recordMgrData->numberOfAttr = *((int*)pagePtr);
 	schema->numAttr = *((int*)pagePtr);
-	//printf("%d", *((int*)pagePtr));
 	pagePtr = pagePtr + intSize;
 
 	// based on attrib num allocate memory for details of attrib
@@ -221,16 +226,13 @@ RC openTable(RM_TableData *rel, char *name) {
 	schema->typeLength = (int*)malloc(sizeof(int)*schema->numAttr);
 	
 
-	//allocate memory for name
-	for (i = 0; i < schema->numAttr; i++) {
-		schema->attrNames[i] = (char*)malloc(COSNT_STRINGLEN);
-	}
-
-	// copy back all attributes detail
+	//allocate and copy back every attribute's detail
 	for (i = 0; i < schema->numAttr; i++) {
 
-		strncpy( schema->attrNames[i], pagePtr, COSNT_STRINGLEN);
-		pagePtr = pagePtr + COSNT_STRINGLEN;
+		schema->attrNames[i] = (char*)malloc(MAX_ATTRNAME_LEN);
+
+		strncpy( schema->attrNames[i], pagePtr, MAX_ATTRNAME_LEN);
+		pagePtr = pagePtr + MAX_ATTRNAME_LEN;
 
 		schema->dataTypes[i] = (*(int*)pagePtr);
 		pagePtr = pagePtr + intSize;
@@ -244,6 +246,7 @@ RC openTable(RM_TableData *rel, char *name) {
 	pagePtr = pagePtr + intSize;
 
 	schema->keyAttrs = (int*)malloc(((sizeof(int))*(schema->keySize)));
+
 	//copy all key details
 	for (i = 0; i < schema->keySize; i++) {
 		schema->keyAttrs[i] = *(int*)pagePtr;
@@ -252,43 +255,46 @@ RC openTable(RM_TableData *rel, char *name) {
 
 	rel->schema = schema;
 
-	retVal = unpinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+	retVal = unpinPage(&recordMgrData->bufferPool, &bufferPageHandle);
 	if (retVal != RC_OK) {
-		printf("Unpin failed ");
+		printf("Unpin page failed\n");
 		return retVal;
 	}
 	
-	/* enable below function to cross verity data */
+	/* enable below function to cross verify data */
 	printRecordManager(recordMgrData, schema, "OpenTable");
 	return retVal;
 }
 
-RC closeTable(RM_TableData *rel) {
-	
+RC closeTable(RM_TableData *rel)
+{
 	RC retVal = RC_OK;
 	//SM_FileHandle fh;
 	RecordMgrData* recordMgrData = (RecordMgrData*)rel->mgmtData;
+	BM_PageHandle bufferPageHandle;
 
-	retVal = pinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle, META_PAGENO);
+	retVal = pinPage(&recordMgrData->bufferPool, &bufferPageHandle, META_PAGENO);
 	if (retVal != RC_OK) {
-		printf("PinPage failed");
+		printf("Pin page failed\n");
 		return retVal;
 	}
 
-	char* slotPageData = recordMgrData->bufferPageHandle.data;
+	char* slotPageData = bufferPageHandle.data;
+
+	//First data item in page is numberofTuples, update the field with new data
 	*(int*)slotPageData = recordMgrData->numberOfTuples;
 
-	markDirty(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+	markDirty(&recordMgrData->bufferPool, &bufferPageHandle);
 
-	retVal = unpinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+	retVal = unpinPage(&recordMgrData->bufferPool, &bufferPageHandle);
 	if (retVal != RC_OK) {
-		printf("Unpin failed ");
+		printf("Unpin page failed\n");
 		return retVal;
 	}
 
 	retVal = shutdownBufferPool(&recordMgrData->bufferPool);
 	if (retVal != RC_OK) {
-		printf("Shut DownBufferPool failed");
+		printf("Shutdown buffer pool failed\n");
 		return retVal;
 	}
 
@@ -305,7 +311,8 @@ RC closeTable(RM_TableData *rel) {
 
 }
 
-RC deleteTable(char *name) {
+RC deleteTable(char *name)
+{
 	RC retVal = RC_OK;
 	retVal = destroyPageFile(name);
 	if (retVal != RC_OK) {
@@ -315,14 +322,13 @@ RC deleteTable(char *name) {
 	return retVal;
 }
 
-int getNumTuples(RM_TableData *rel) {
-
+int getNumTuples(RM_TableData *rel)
+{
 	RecordMgrData* recordMgrData = (RecordMgrData*)rel->mgmtData;
 	return recordMgrData->numberOfTuples;
-
 }
 
-int searchForFreeSlot(char* bufferSlotPage,int totalSlotCount,int recordSizeWithDelimiter) {
+int searchForFreeSlot(char* bufferSlotPage, int totalSlotCount, int recordSizeWithDelimiter) {
 
 	int retVal = -1;
 	int i = 0;
@@ -341,11 +347,12 @@ RC insertRecord(RM_TableData *rel, Record *record) {
 	RC retVal = RC_OK;
 
 	RecordMgrData* recordMgrData = (RecordMgrData*)rel->mgmtData;
-	int recordSizeWithDelimiter = recordMgrData->recordSize + 1; // + 1 for extrac delimiter character
+	int recordSizeWithDelimiter = recordMgrData->recordSize + 1; // + 1 for extra  delimiter character
 	int recordSizeWithoutDelimiter = recordMgrData->recordSize;
 	RID *rid = &(record->id);
 	char *bufferSlotPage = NULL;
 	int totalSlotCount = 0;
+	BM_PageHandle bufferPageHandle;
 
 	/**********************Label************************/
 	retryWithNextPage:
@@ -354,14 +361,14 @@ RC insertRecord(RM_TableData *rel, Record *record) {
 	rid->slot = -1;
 
 	// pin the free page to write record
-	retVal = pinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle, rid->page);
+	retVal = pinPage(&recordMgrData->bufferPool, &bufferPageHandle, rid->page);
 	if (retVal != RC_OK) {
-		printf("PinPage failed");
+		printf("Pin page failed\n");
 		return retVal;
 	}
 
 	// get the page from buffer slot and insert record
-	bufferSlotPage = recordMgrData->bufferPageHandle.data;
+	bufferSlotPage = bufferPageHandle.data;
 
 	totalSlotCount = (int)(PAGE_SIZE / recordSizeWithDelimiter);
 
@@ -369,38 +376,39 @@ RC insertRecord(RM_TableData *rel, Record *record) {
 
 	if (rid->slot == -1) {
 		//printf("No Free slot in current page retrying with nextPage");
-		retVal = unpinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+		retVal = unpinPage(&recordMgrData->bufferPool, &bufferPageHandle);
 		if (retVal != RC_OK) {
-			printf("Unpin failed ");
+			printf("Unpin page failed\n");
 			return retVal;
 		}
 		recordMgrData->firstFreePage++;
 		goto retryWithNextPage;
 	}
 
-	retVal = markDirty(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+	retVal = markDirty(&recordMgrData->bufferPool, &bufferPageHandle);
 	if (retVal != RC_OK) {
-		printf("markDirty failed");
+		printf("markDirty failed\n");
 		return retVal;
 	}
 
 	// move pointer to slot address
 	bufferSlotPage = bufferSlotPage + rid->slot * recordSizeWithDelimiter;
 
-	// add delimiter in begining
+	// add delimiter in beginning
 	*bufferSlotPage = RECORD_DELIMITER;
 	bufferSlotPage = bufferSlotPage + 1;
 
 	memcpy(bufferSlotPage, record->data, recordSizeWithoutDelimiter);
 
-	retVal = unpinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+	retVal = unpinPage(&recordMgrData->bufferPool, &bufferPageHandle);
 	if (retVal != RC_OK) {
-		printf("Unpin failed ");
+		printf("Unpin page failed\n");
 		return retVal;
 	}
 
 	// copy updated new record id
 	record->id = *rid;
+
 	// update totalNoOfTuples
 	recordMgrData->numberOfTuples++;
 	return retVal;
@@ -411,23 +419,23 @@ RC deleteRecord(RM_TableData *rel, RID id) {
 	RC retVal = RC_OK;
 	RecordMgrData* recordMgrData = (RecordMgrData*)rel->mgmtData;
 
-	int recordSizeWithDelimiter = recordMgrData->recordSize + 1; // + 1 for extrac delimiter character
+	int recordSizeWithDelimiter = recordMgrData->recordSize + 1; // + 1 for extra delimiter character
 	int recordSizeWithoutDelimiter = recordMgrData->recordSize;
 	char *bufferSlotPage = NULL;
 	char *tempBufferSlotPage = NULL; // for address movement
-
+	BM_PageHandle bufferPageHandle;
 	RID *rid = &id;
 
 	// pin the free page to write record
-	retVal = pinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle, rid->page);
+	retVal = pinPage(&recordMgrData->bufferPool, &bufferPageHandle, rid->page);
 	if (retVal != RC_OK) {
-		printf("PinPage failed");
+		printf("Pin page failed\n");
 		return retVal;
 	}
 
-	//As we are deleting we are updating number of tupes
+	//As we are deleting we are updating number of tuples
 	recordMgrData->numberOfTuples--;
-	bufferSlotPage = recordMgrData->bufferPageHandle.data;
+	bufferSlotPage = bufferPageHandle.data;
 	// move to the slot which needs to be deleted
 	tempBufferSlotPage = bufferSlotPage + (recordSizeWithDelimiter * rid->slot);
 	
@@ -440,91 +448,101 @@ RC deleteRecord(RM_TableData *rel, RID id) {
 		*tempBufferSlotPage = '\0';
 	}
 	
-	retVal = markDirty(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+	retVal = markDirty(&recordMgrData->bufferPool, &bufferPageHandle);
 	if (retVal != RC_OK) {
-		printf("markDirty failed");
+		printf("markDirty failed\n");
 		return retVal;
 	}
 
-	retVal = unpinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+	retVal = unpinPage(&recordMgrData->bufferPool, &bufferPageHandle);
 	if (retVal != RC_OK) {
-		printf("Unpin failed ");
+		printf("Unpin page failed\n");
 		return retVal;
 	}
 
 	return retVal;
 }
 
-RC updateRecord(RM_TableData *rel, Record *record) {
+RC updateRecord(RM_TableData *rel, Record *record)
+{
 	RC retVal = RC_OK;
 	RecordMgrData* recordMgrData = (RecordMgrData*)rel->mgmtData;
 
-	int recordSizeWithDelimiter = recordMgrData->recordSize + 1; // + 1 for extrac delimiter character
+	int recordSizeWithDelimiter = recordMgrData->recordSize + 1; // + 1 for extra delimiter character
 	int recordSizeWithoutDelimiter = recordMgrData->recordSize;
 	char *bufferSlotPage = NULL;
 	char *tempBufferSlotPage = NULL; // for address movement
-
+	BM_PageHandle bufferPageHandle;
 	RID *rid = &(record->id);
 
 	// pin the free page to write record
-	retVal = pinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle, rid->page);
+	retVal = pinPage(&recordMgrData->bufferPool, &bufferPageHandle, rid->page);
 	if (retVal != RC_OK) {
-		printf("PinPage failed");
+		printf("Pin page failed\n");
 		return retVal;
 	}
 
-	bufferSlotPage = recordMgrData->bufferPageHandle.data;
+	bufferSlotPage = bufferPageHandle.data;
 	tempBufferSlotPage = bufferSlotPage;
 
 	tempBufferSlotPage = tempBufferSlotPage + recordSizeWithDelimiter * (rid->slot);
 	
-	// skip delemeter
+	// skip delimiter
 	tempBufferSlotPage = tempBufferSlotPage + 1;
 
 	memcpy(tempBufferSlotPage, record->data, recordSizeWithoutDelimiter);
 
-	retVal = markDirty(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+	retVal = markDirty(&recordMgrData->bufferPool, &bufferPageHandle);
 	if (retVal != RC_OK) {
-		printf("markDirty failed");
+		printf("markDirty failed\n");
 		return retVal;
 	}
 
-	retVal = unpinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+	retVal = unpinPage(&recordMgrData->bufferPool, &bufferPageHandle);
 	if (retVal != RC_OK) {
-		printf("Unpin failed ");
+		printf("Unpin page failed\n");
 		return retVal;
 	}
 
 	return retVal;
-	
 }
 
-RC getRecord(RM_TableData *rel, RID id, Record *record) {
-
+RC getRecord(RM_TableData *rel, RID id, Record *record)
+{
 	RC retVal = RC_OK;
 	RecordMgrData* recordMgrData = (RecordMgrData*)rel->mgmtData;
 	RID *rid = &id;
-	int recordSizeWithDelimiter = recordMgrData->recordSize + 1; // + 1 for extrac delimiter character
+	int recordSizeWithDelimiter = recordMgrData->recordSize + 1; // + 1 for extra delimiter character
 	int recordSizeWithoutDelimiter = recordMgrData->recordSize;
 	//RID *rid = &(record->id);
 	char *bufferSlotPage = NULL;
 	char *recordData = NULL;
+	BM_PageHandle bufferPageHandle;
+	int maxSlots = (int)(PAGE_SIZE / recordSizeWithDelimiter);
 
-	// pin the free page to write record
-	retVal = pinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle, rid->page);
+	if(rid->slot > maxSlots)
+	{
+		retVal = RC_RECORD_NOT_FOUND;
+		return retVal;
+	}
+
+	// pin the page to read record
+	retVal = pinPage(&recordMgrData->bufferPool, &bufferPageHandle, rid->page);
 	if (retVal != RC_OK) {
-		printf("PinPage failed");
+		printf("Pin page failed\n");
 		return retVal;
 	}
 
 	// get the page from buffer slot and insert record
-	bufferSlotPage = recordMgrData->bufferPageHandle.data;
+	bufferSlotPage = bufferPageHandle.data;
 
 	// move to the slot in the give page
 	bufferSlotPage = bufferSlotPage + (recordSizeWithDelimiter * (rid->slot));
 
-	if (*bufferSlotPage != RECORD_DELIMITER) {
+	if (*bufferSlotPage != RECORD_DELIMITER)
+	{
 		retVal = RC_RECORD_NOT_FOUND;
+		unpinPage(&recordMgrData->bufferPool, &bufferPageHandle);
 		return retVal;
 	}
 	else {
@@ -538,36 +556,127 @@ RC getRecord(RM_TableData *rel, RID id, Record *record) {
 	}
 
 
-	retVal = unpinPage(&recordMgrData->bufferPool, &recordMgrData->bufferPageHandle);
+
+	retVal = unpinPage(&recordMgrData->bufferPool, &bufferPageHandle);
 	if (retVal != RC_OK) {
-		printf("Unpin failed ");
+		printf("Unpin page failed\n");
 		return retVal;
 	}
 
 	return retVal;
-
 }
 
 // scans
-RC startScan(RM_TableData *rel, RM_ScanHandle *scan, Expr *cond) {
+RC startScan(RM_TableData *rel, RM_ScanHandle *scan, Expr *cond)
+{
+	RC retVal = RC_OK;
+	RM_ScaningRecordInfo *scan_mgmt = (RM_ScaningRecordInfo *)malloc(sizeof(RM_ScaningRecordInfo));
+	scan->rel = rel;
+	scan->mgmtData= scan_mgmt;
+	scan_mgmt->pageCurrentPosition = 1;
+	scan_mgmt->slotCurrentPosition = 0;
+	scan_mgmt->condition = cond;
 
+	return retVal;
 }
 
-RC next(RM_ScanHandle *scan, Record *record) {
+RC next(RM_ScanHandle *scan, Record *record)
+{
+	RC retVal = RC_OK;
+	RecordMgrData *recordMgrData = (RecordMgrData *)scan->rel->mgmtData;
+	RM_ScaningRecordInfo *scan_mgmt = (RM_ScaningRecordInfo *)scan->mgmtData;
+	Value *value;
+	int recordSizeWithDelimiter = recordMgrData->recordSize + 1; // + 1 for extra  delimiter character
+	RC evalRet = RC_OK;
+	bool tupleFound = FALSE;
 
+	record->id.page = scan_mgmt->pageCurrentPosition;
+	record->id.slot = scan_mgmt->slotCurrentPosition;
+
+	retVal = getRecord(scan->rel, record->id, record); //Get the record information
+
+	while(retVal != RC_RECORD_NOT_FOUND)
+	{
+		if(scan_mgmt->condition != NULL)
+		{
+			evalRet = evalExpr(record, scan->rel->schema, scan_mgmt->condition, &value);
+			if(evalRet == RC_OK)
+			{
+				if(value->dt == DT_BOOL && value->v.boolV == TRUE)
+				{
+					tupleFound =  TRUE;
+					break;
+				}
+
+				if(value->dt == DT_INT && value->v.intV >= 1)
+				{
+					tupleFound =  TRUE;
+					break;
+				}
+			}
+		}
+		else
+		{
+			tupleFound =  TRUE;
+			break;
+		}
+
+		if(scan_mgmt->slotCurrentPosition < (int)(PAGE_SIZE / recordSizeWithDelimiter))
+		{
+			scan_mgmt->slotCurrentPosition++;
+		}
+		else if (scan_mgmt->pageCurrentPosition <= recordMgrData->firstFreePage)
+		{
+			scan_mgmt->pageCurrentPosition++;
+			scan_mgmt->slotCurrentPosition = 0;
+		}
+		else
+		{
+			break;
+		}
+
+		record->id.page = scan_mgmt->pageCurrentPosition;
+		record->id.slot = scan_mgmt->slotCurrentPosition;
+		retVal = getRecord(scan->rel, record->id, record); //Get the record information
+	}
+
+
+	if(tupleFound != TRUE)
+	{
+		retVal = RC_RM_NO_MORE_TUPLES;
+	}
+	else
+	{
+		if(scan_mgmt->slotCurrentPosition < (int)(PAGE_SIZE / recordSizeWithDelimiter))
+		{
+			scan_mgmt->slotCurrentPosition++;
+		}
+		else if (scan_mgmt->pageCurrentPosition <= recordMgrData->firstFreePage)
+		{
+			scan_mgmt->pageCurrentPosition++;
+			scan_mgmt->slotCurrentPosition = 0;
+		}
+	}
+
+	return retVal;
 }
 
-RC closeScan(RM_ScanHandle *scan) {
-
+RC closeScan(RM_ScanHandle *scan)
+{
+	RM_ScaningRecordInfo *scan_mgmt = (RM_ScaningRecordInfo *)scan->mgmtData;
+	free(scan_mgmt);
+	scan->mgmtData = NULL;
+	return RC_OK;
 }
 
 
 // dealing with schemas
-int getRecordSize(Schema *schema) {
-
+int getRecordSize(Schema *schema)
+{
 	int recordSize = 0;
 	int i;
-	for (i = 0; i < schema->numAttr; ++i) {
+	for (i = 0; i < schema->numAttr; i++)
+	{
 		switch (schema->dataTypes[i]) {
 		case DT_BOOL:
 			recordSize = recordSize + sizeof(bool);
@@ -582,7 +691,7 @@ int getRecordSize(Schema *schema) {
 			recordSize = recordSize + schema->typeLength[i];
 			break;
 		default:
-			printf("shouldnt be here!!");
+			printf("\ngetRecordSize : Shouldn't be here!!\n");
 			break;
 		}
 	}
@@ -604,23 +713,41 @@ Schema *createSchema(int numAttr, char **attrNames, DataType *dataTypes, int *ty
 
 RC freeSchema(Schema *schema) {
 
-	if (schema->dataTypes != NULL) {
-		free(schema->dataTypes);
-		schema->dataTypes = NULL;
+	RC retVal = RC_OK;
+	int i;
+
+	if(schema != NULL)
+	{
+		if (schema->dataTypes != NULL) {
+			free(schema->dataTypes);
+			schema->dataTypes = NULL;
+		}
+
+		if (schema->typeLength != NULL) {
+			free(schema->typeLength);
+			schema->typeLength = NULL;
+		}
+
+		if (schema->keyAttrs != NULL) {
+			free(schema->keyAttrs);
+			schema->keyAttrs = NULL;
+		}
+	
+		if(schema->attrNames != NULL) {
+			for(i = 0; i < schema->numAttr; i++)
+		    	{
+		      		if(schema->attrNames[i] != NULL)
+		      			free(schema->attrNames[i]);
+		    	}
+	    		
+	    		free(schema->attrNames);
+	    	}
+
+		free(schema);
+		schema = NULL;
 	}
 
-	if (schema->typeLength != NULL) {
-		free(schema->typeLength);
-		schema->typeLength = NULL;
-	}
-
-	if (schema->keyAttrs != NULL) {
-		free(schema->keyAttrs);
-		schema->keyAttrs = NULL;
-	}
-
-	free(schema);
-	schema = NULL;
+	return retVal;
 }
 
 
@@ -686,14 +813,13 @@ RC getAttr(Record *record, Schema *schema, int attrNum, Value **value) {
 		stringLength = 0;
 		stringLength = schema->typeLength[attrNum];
 		(*value)->dt = DT_STRING;
-		//tempBuffer = (char*)malloc(stringLength + 1);
 		(*value)->v.stringV = (char*)malloc(stringLength + 1);
 		strncpy((*value)->v.stringV, recordData, stringLength);
 		(*value)->v.stringV[stringLength] = '\0';
 		break;
 
 	default:
-		printf("setAttr() Shouldnt be here !!!");
+		printf("setAttr() Shouldn't be here !!!\n");
 		break;
 	}
 	return retVal;
@@ -709,6 +835,7 @@ RC setAttr(Record *record, Schema *schema, int attrNum, Value *value) {
 	char* tempBuffer = NULL;
 
 	findOffsetForAttrNum(attrNum, schema, &offsetInsideRecord);
+
 	// move record pointer to the attrNum position
 	recordData = recordData + offsetInsideRecord;
 
@@ -732,14 +859,14 @@ RC setAttr(Record *record, Schema *schema, int attrNum, Value *value) {
 		stringLength = schema->typeLength[attrNum];
 		tempBuffer = (char*)malloc(stringLength + 1);
 		strncpy(tempBuffer, value->v.stringV, stringLength);
-		// add delemeter in the end
+		// add delimiter at the end
 		tempBuffer[stringLength] = '\0';
 		strncpy(recordData, tempBuffer, stringLength);
 		free(tempBuffer);
 		break;
 
 	default:
-		printf("setAttr() Shouldnt be here !!!");
+		printf("setAttr() Shouldn't be here !!!\n");
 		break;
 	}
 	return retVal;
@@ -754,8 +881,9 @@ RC findOffsetForAttrNum(int attrNum, Schema *schema, int *offset) {
 	int currentPosition = 0;
 	DataType dataTypes;
 
-	// while its position is not reached addup the typelength and calculate the position for attrNum
+	// while attribute's position is not reached add the typelength /sizeof to current offset
 	while (currentPosition < attrNum) {
+
 		// get data type
 		dataTypes = schema->dataTypes[currentPosition];
 		
