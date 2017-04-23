@@ -43,4 +43,8 @@ extern RC freeRecord (Record *record);
 extern RC getAttr (Record *record, Schema *schema, int attrNum, Value **value);
 extern RC setAttr (Record *record, Schema *schema, int attrNum, Value *value);
 
+//to find the offset for given attribute based on its position
+extern RC findOffsetForAttrNum(int attrNum, Schema *schema, int *offset);
+extern int searchForFreeSlot(char* bufferSlotPage,int totalSlotCount,int recordSizeWithDelimiter);
+
 #endif // RECORD_MGR_H
