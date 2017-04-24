@@ -15,6 +15,8 @@
 static void testInsertAndFind (void);
 static void testDelete (void);
 static void testIndexScan (void);
+// test case to check initial creation of btree related metadata
+static void testCreateOpenDelete(void);
 
 // helper methods
 static Value **createValues (char **stringVals, int size);
@@ -29,12 +31,36 @@ int
 main (void) 
 {
   testName = "";
+  // uncomment below for checking read write operations on disk
+  //testCreateOpenDelete();
 
   testInsertAndFind();
   testDelete();
   testIndexScan();
 
   return 0;
+}
+
+
+void
+testCreateOpenDelete(void)
+{
+	
+	testName = "test b-tree create open delete";
+	int i, testint;
+	BTreeHandle *tree = NULL;
+
+	// init
+	TEST_CHECK(initIndexManager(NULL));
+	TEST_CHECK(createBtree("testidx", DT_INT, 2));
+	TEST_CHECK(openBtree(&tree, "testidx"));
+
+	// cleanup
+	TEST_CHECK(closeBtree(tree));
+	TEST_CHECK(deleteBtree("testidx"));
+	TEST_CHECK(shutdownIndexManager());
+
+	TEST_DONE();
 }
 
 // ************************************************************ 

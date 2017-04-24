@@ -12,12 +12,12 @@
 
 #define FILE_MODE S_IRWXU | S_IRGRP | S_IROTH
 
-static char * io_buffer = NULL;
+static char  io_buffer[PAGE_SIZE];
 const bool FORCE_DISK_IO = TRUE; //To force using file I/O instead of memory mapping
 
 void initStorageManager (void)
 {
-	io_buffer = (char *) malloc (PAGE_SIZE);
+	//io_buffer = (char *) malloc (PAGE_SIZE);
 }
 
 RC createPageFile (char *fileName)
@@ -26,6 +26,8 @@ RC createPageFile (char *fileName)
 	int fd;
 	int ret;
 	printf("fileName %s",fileName);
+	/*if(io_buffer == NULL)
+		io_buffer = (char *)malloc(PAGE_SIZE);*/
 
 	/* Invalid or null pointer check*/	
 	if(fileName == NULL){

@@ -3,6 +3,23 @@
 
 #include "dberror.h"
 #include "tables.h"
+#include "buffer_mgr.h"
+
+#define MAX_BTREE_ORDER 511
+
+typedef struct _BT_Node {
+	int numKeys;
+	int keys[MAX_BTREE_ORDER];
+	int pointers[MAX_BTREE_ORDER + 1];
+} BT_Node;
+
+typedef struct _BT_Mgmt_Info {
+	int order;
+	int numNodes;
+	BT_Node * root;
+	int firstFreePage;
+	BM_BufferPool bufferPool;
+} BT_Mgmt_Info;
 
 // structure for accessing btrees
 typedef struct BTreeHandle {
@@ -41,5 +58,9 @@ extern RC closeTreeScan (BT_ScanHandle *handle);
 
 // debug and test functions
 extern char *printTree (BTreeHandle *tree);
+
+// to free BT_Mgmt_Info
+extern RC free_BT_Mgmt_Info(BT_Mgmt_Info* BTMgmtPtr);
+extern RC freeBTreeHandle(BTreeHandle* tree);
 
 #endif // BTREE_MGR_H
