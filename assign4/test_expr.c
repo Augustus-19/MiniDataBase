@@ -32,7 +32,7 @@ static void testExpressions (void);
 
 char *testName;
 
-#if 0 // make it 1 if need to test expr
+#if 1 // make it 1 if need to test expr
 // main method
 int 
 main (void) 

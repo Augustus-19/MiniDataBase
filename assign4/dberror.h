@@ -74,6 +74,11 @@ extern char *RC_message;
 extern void printError (RC error);
 extern char *errorMessage (RC error);
 
+// kiran
+#define RC_ORDER_TOO_HIGH_FOR_PAGE 701
+#define RC_INSERT_ERROR 702
+#define RC_NO_RECORDS_TO_SCAN 703
+
 #define THROW(rc,message) \
   do {			  \
     RC_message=message;	  \

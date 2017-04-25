@@ -3,7 +3,7 @@ THIS_FILE := $(lastword $(MAKEFILE_LIST))
 CC=gcc
 CFLAGS=-Wall
 
-COMMON_OBJS=dberror.o storage_mgr.o buffer_mgr.o buffer_mgr_stat.o record_mgr.o expr.o rm_serializer.o btree_mgr.o
+COMMON_OBJS=dberror.o storage_mgr.o buffer_mgr.o buffer_mgr_stat.o record_mgr.o expr.o rm_serializer.o btree_mgr.o btree_mgr_helper.o
 TEST1_OBJS=$(COMMON_OBJS) test_assign4_1.o
 TESTEXPR_OBJS=$(COMMON_OBJS) test_expr.o
 ALL_OBJS=$(COMMON_OBJS) test_assign4_1.o test_expr.o
@@ -35,6 +35,7 @@ common:
 	$(CC) $(CFLAGS) -c rm_serializer.c
 	$(CC) $(CFLAGS) -c expr.c
 	$(CC) $(CFLAGS) -c btree_mgr.c
+	$(CC) $(CFLAGS) -c btree_mgr_helper.c
 
 
 clean:
